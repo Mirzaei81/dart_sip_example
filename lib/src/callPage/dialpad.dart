@@ -9,7 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sip_ua/sip_ua.dart';
 
-import 'widgets/action_button.dart';
+import '../widgets/action_button.dart';
 
 class DialPadWidget extends StatefulWidget {
   final SIPUAHelper? _helper;
