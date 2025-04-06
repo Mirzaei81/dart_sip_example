@@ -1,10 +1,15 @@
+import 'package:linphone/src/classes/call_record.dart';
+import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/contactsPage/contact_list.dart';
+import 'package:linphone/src/contactsPage/top_nav_contacts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ContactPage extends StatefulWidget {
-  ContactPage({super.key});
+  ContactPage();
+
   @override
   State<StatefulWidget> createState() => _ContactWidget();
 }
@@ -20,11 +25,12 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
     2: "/contacts",
     3: "/settings",
   };
-  String _name = "";
-  bool fabActive = false;
+  late String _name = "";
+  late bool fabActive;
   late final TabController _tabController;
   late final TabController _bottomTabController;
-  late int _activeIndex = 0;
+  late int _activeIndex;
+  late List<CallRecord> _records = List<CallRecord>.empty();
 
   Future<void> _loadName() async {
     final perf = await _prefs;
@@ -36,22 +42,27 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
   @override
   void initState() {
     _tabController = TabController(
-        animationDuration: Duration(microseconds: 30), length: 3, vsync: this);
-
+        animationDuration: Duration(microseconds: 30), length: 2, vsync: this);
+    DbService.listRecords().then((r) {
+      _records = r;
+    });
     _bottomTabController = TabController(
         animationDuration: Duration(microseconds: 30), length: 4, vsync: this);
-    _bottomTabController.index = 1;
+    _bottomTabController.index = 2;
     _bottomTabController.addListener(() {
-      print(bottomTabs[_bottomTabController.index]);
       Navigator.pushNamed(
           context, bottomTabs[_bottomTabController.index] ?? "/");
     });
+    _activeIndex = 0;
+    fabActive = false;
     _loadName();
-    _tabController.animation!.addListener(() {
-      setState(() {
-        _activeIndex = _tabController.index;
+    if (mounted) {
+      _tabController.animation!.addListener(() {
+        setState(() {
+          _activeIndex = _tabController.index;
+        });
       });
-    });
+    }
     super.initState();
   }
 
@@ -76,51 +87,19 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> calls = [
-      {'name': 'xdd', "pinned": false, 'date': DateTime.now(), "is_last": true},
-      {
-        'name': 'xdd',
-        'date': DateTime.now().subtract(Duration(days: 1)),
-        "lastmessage": "test",
-        "pinned": false,
-        "is_last": true
-      },
-      {
-        'name': 'xddddd',
-        "lastmessage": "test",
-        "pinned": true,
-        'date': DateTime.now().subtract(Duration(days: 1)),
-        "is_last": false
-      },
-      {
-        'name': 'Grocery xddddd',
-        "lastmessage": "test",
-        "pinned": false,
-        'date': DateTime.now().subtract(Duration(days: 2)),
-        "is_last": true
-      },
-      {
-        'name': 'Workout xddddd',
-        "lastmessage": "test",
-        'date': DateTime.now().subtract(Duration(days: 3)),
-        "pinned": true,
-        "is_last": true
-      },
-    ];
-
-    return fabActive ? NewContactPage() : messagesView(calls);
+    return fabActive ? NewContactPage() : messagesView(_records);
   }
 
-  Scaffold messagesView(List<Map<String, dynamic>> calls) {
+  Scaffold messagesView(List<CallRecord> calls) {
     const String userAsset = "assets/images/user.svg";
     const String bellAsset = "assets/images/Bellsvg.svg";
     const String searchAsset = "assets/images/search.svg";
     const String addAsset = "assets/images/add_circle.svg";
 
-    const String bubbleFillAsset = "assets/images/bubble_fill.svg";
+    const String contactFillAsset = "assets/images/contact_fill.svg";
 
+    const String bubbleOutlineAsset = "assets/images/bubble_outline.svg";
     const String callOutlineAsset = "assets/images/call_outline.svg";
-    const String contactOutlineAsset = "assets/images/contact_outline.svg";
     const String settingsOutlineAsset = "assets/images/settings_outline.svg";
     return Scaffold(
       // floatingActionButtonAnimator: Fade, TODO
@@ -159,14 +138,14 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                   icon: SvgPicture.asset(
                     callOutlineAsset,
                   ),
-                  text: 'call',
+                  text: 'Call',
                 ),
                 Tab(
-                  icon: SvgPicture.asset(bubbleFillAsset),
-                  text: "Contact",
+                  icon: SvgPicture.asset(bubbleOutlineAsset),
+                  text: "Messages",
                 ),
                 Tab(
-                  icon: SvgPicture.asset(contactOutlineAsset),
+                  icon: SvgPicture.asset(contactFillAsset),
                   text: "Contacts",
                 ),
                 Tab(
@@ -265,7 +244,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                     ),
                     Expanded(
                       child: fabActive
-                          ? ContactPage()
+                          ? Placeholder()
                           : ContactListView(
                               tabController: _tabController, messages: calls),
                     ),
@@ -280,7 +259,6 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
       floatingActionButton: fabActive ? null : fabMethod(addAsset),
     );
   }
-
 
   Scaffold NewContactPage() {
     const String arrowLeftAsset = "assets/images/arrow_left.svg";

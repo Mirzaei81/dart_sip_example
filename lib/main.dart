@@ -1,29 +1,25 @@
-import 'package:dart_sip_ua_example/src/contactsPage/contacts.dart';
-import 'package:dart_sip_ua_example/src/callPage/history.dart';
-import 'package:dart_sip_ua_example/src/messagePage/message_page.dart';
-import 'package:dart_sip_ua_example/src/router.dart';
-import 'package:dart_sip_ua_example/src/settingsPage/settings.dart';
-import 'package:dart_sip_ua_example/src/theme_provider.dart';
-import 'package:dart_sip_ua_example/src/user_state/sip_user_cubit.dart';
-import 'package:dart_sip_ua_example/theme.dart';
-import 'package:flutter/foundation.dart'
-    show debugDefaultTargetPlatformOverride;
+import 'package:linphone/src/callPage/outgoing.dart';
+import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/contactsPage/contacts.dart';
+import 'package:linphone/src/callPage/call_record_page.dart';
+import 'package:linphone/src/messagePage/message_page.dart';
+import 'package:linphone/src/router.dart';
+import 'package:linphone/src/settingsPage/settings.dart';
+import 'package:linphone/src/theme_provider.dart';
+import 'package:linphone/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:logger/logger.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:logger/logger.dart' as Logging;
 import 'package:provider/provider.dart';
-import 'package:sip_ua/sip_ua.dart';
+import 'package:flutter_pjsip/flutter_pjsip.dart';
 
 import 'src/about.dart';
-import 'src/callscreen.dart';
-import 'src/callPage/dialpad.dart';
-import 'src/register.dart';
+import 'src/registerPage/register.dart';
 
-void main() {
-  Logger.level = Level.debug;
-  if (WebRTC.platformIsDesktop) {
-    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-  }
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  Logging.Logger.level = Logging.Level.debug;
+  await DbService.initdb();
+  // await oVpnConnection();
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
@@ -32,23 +28,23 @@ void main() {
   );
 }
 
-
-// ignore: must_be_immutable
 class MyApp extends StatelessWidget {
-  final SIPUAHelper _helper = SIPUAHelper();
-  Map<String, PageContentBuilder> routes = {
-    '/': ([SIPUAHelper? helper, Object? arguments]) => HistoryPage(),
-    '/messages': ([SIPUAHelper? helper, Object? arguments]) => MessagePage(),
-    '/contacts': ([SIPUAHelper? helper, Object? arguments]) => ContactsPage(),
-    '/settings': ([SIPUAHelper? helper, Object? arguments]) => SettingsPage(),
-    '/dial': ([SIPUAHelper? helper, Object? arguments]) =>
-        DialPadWidget(helper),
-    '/register': ([SIPUAHelper? helper, Object? arguments]) =>
-        RegisterWidget(helper),
-    '/callscreen': ([SIPUAHelper? helper, Object? arguments]) =>
-        CallScreenWidget(helper, arguments as Call?),
-    '/about': ([SIPUAHelper? helper, Object? arguments]) => AboutWidget(),
-  };
+  static final FlutterPjsip _helper = FlutterPjsip.instance;
+  late final Map<String, PageContentBuilder> routes;
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+  MyApp() {
+    routes = {
+      '/': ([Object? arguments]) => HistoryPage(),
+      '/messages': ([Object? arguments]) => MessagePage(),
+      '/contacts': ([Object? arguments]) => ContactPage(),
+      '/settings': ([Object? arguments]) => SettingsPage(),
+      '/register': ([Object? arguments]) => RegisterWidget(),
+      "/outgoing": ([Object? arguments]) => Outgoing(),
+      "/incoming": ([Object? arguments]) => Outgoing(),
+      '/about': ([Object? arguments]) => AboutWidget(),
+    };
+  }
 
   Route<dynamic>? _onGenerateRoute(RouteSettings settings) {
     final String? name = settings.name;
@@ -56,8 +52,7 @@ class MyApp extends StatelessWidget {
     if (pageContentBuilder != null) {
       if (settings.arguments != null) {
         final Route route = CustomMaterialRouter<Widget>(
-            builder: (context) =>
-                pageContentBuilder(_helper, settings.arguments));
+            builder: (context) => pageContentBuilder(settings.arguments));
         return route;
       } else {
         final Route route = CustomMaterialRouter<Widget>(
@@ -70,20 +65,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final brightness = View.of(context).platformDispatcher.platformBrightness;
-
     TextTheme textTheme = TextTheme();
     MaterialTheme theme = MaterialTheme(textTheme);
-    ThemeData targetTheme = brightness == Brightness.light ? theme.light() : theme.dark();
+    ThemeData targetTheme =
+        brightness == Brightness.light ? theme.light() : theme.dark();
 
     return MultiProvider(
       providers: [
-        Provider<SIPUAHelper>.value(value: _helper),
-        Provider<SipUserCubit>(
-            create: (context) => SipUserCubit(sipHelper: _helper)),
+        Provider<DbService>(create: (context) => DbService()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'Flutter Demo',
         theme: targetTheme,
         initialRoute: '/',
@@ -93,4 +86,34 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// 9192233484
+//
+// Future<void> oVpnConnection() async {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   print("initilizing");
+//   await FlutterOpenvpn.init(
+//     localizedDescription: "Linotik",
+//     providerBundleIdentifier:
+//         "com.topfreelancerdeveloper.flutterOpenvpnExample.RunnerExtension", //this is required only on iOS
+//   );
+//   var content = await rootBundle.loadString("assets/vpn/OpenVPN.ovpn");
 
+//   await FlutterOpenvpn.lunchVpn(
+//     content,
+//     (isProfileLoaded) {
+//       print('\x1b[1;31misProfileLoaded : $isProfileLoaded');
+//     },
+//     (vpnActivated) {
+//       print('\x1b[1;31mvpnActivated : $vpnActivated');
+//     },
+//     user: "mirzaei",
+//     pass: "1v15nz",
+//     onConnectionStatusChanged: (duration, lastPacketRecieve, byteIn, byteOut) =>
+//         print(byteIn),
+//     expireAt: DateTime.now().add(
+//       Duration(
+//         seconds: 180,
+//       ),
+//     ),
+//   );
+// }

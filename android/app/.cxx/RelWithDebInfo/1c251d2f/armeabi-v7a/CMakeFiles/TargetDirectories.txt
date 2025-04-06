@@ -1,0 +1,2 @@
+C:/Users/Mirza/Projects/dart-sip-ua/example/android/app/.cxx/RelWithDebInfo/1c251d2f/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/Mirza/Projects/dart-sip-ua/example/android/app/.cxx/RelWithDebInfo/1c251d2f/armeabi-v7a/CMakeFiles/rebuild_cache.dir

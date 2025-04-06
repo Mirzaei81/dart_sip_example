@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="122dp"
+    android:background="@drawable/gradiant_background">
+
+    <RelativeLayout
+        android:id="@+id/relativeLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginTop="16dp">
+
+        <ImageView
+            android:id="@+id/Avatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_centerInParent="true"
+            android:layout_gravity="center"
+            android:contentDescription="@string/avatar"
+            android:src="@drawable/user_no_outline"
+            android:translationZ="3dp" />
+
+        <ImageView
+            android:id="@+id/inner_white"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:layout_centerInParent="true"
+            android:background="@drawable/white_circle"
+            android:translationZ="2dp" />
+
+        <ImageView
+            android:id="@+id/inner_blue"
+            android:layout_width="52.5dp"
+            android:layout_height="52.5dp"
+            android:layout_centerInParent="true"
+            android:background="@drawable/blue_circle"
+            android:translationZ="2dp" />
+
+        <ImageView
+            android:id="@+id/outer_white"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_centerInParent="true"
+            android:layout_gravity="center"
+            android:background="@drawable/white_circle"
+            android:translationZ="0dp" />
+    </RelativeLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:layout_marginLeft="5dp"
+        android:orientation="vertical"
+        android:layout_toEndOf="@+id/relativeLayout">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:text="@string/unknown" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="12sp"
+            android:text="@string/Number" />
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="14dp"
+        android:padding="4dp"
+        android:layout_marginStart="10dp"
+        android:background="@drawable/transparent_bg" >
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_gravity="center"
+            android:src="@drawable/bubble_outline"
+            android:tint="#FFFFFFFF"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textColor="#FFFFFF"
+            android:text="Send Message"/>
+        <ImageView
+            android:layout_width="8dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center"
+            android:src="@drawable/arrow_down"
+            android:tint="#FFFFFFFF"/>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginBottom="14dp"
+        android:layout_marginEnd="6dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:padding="5dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/wrap_circle"
+            android:src="@drawable/call_accept"/>
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:padding="5dp"
+            android:background="@drawable/wrap_circle"
+            android:tint="#F24141"
+            android:rotation="135"
+            android:src="@drawable/call_accept"/>
+    </LinearLayout>
+</RelativeLayout>

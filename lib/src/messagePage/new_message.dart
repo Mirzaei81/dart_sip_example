@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 class DialPage extends StatefulWidget {
   final List<Map<String, dynamic>> contacts;
   const DialPage({
-    super.key,
     required this.contacts,
   });
   @override

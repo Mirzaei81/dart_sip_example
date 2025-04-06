@@ -1,7 +1,10 @@
+import 'package:linphone/src/classes/db.dart';
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 
 class SettingsPage extends StatefulWidget {
-  SettingsPage({super.key});
+  SettingsPage();
+
   @override
   State<StatefulWidget> createState() => SettingsWidget();
 }

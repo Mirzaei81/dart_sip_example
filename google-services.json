@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "783084357448",
+    "project_id": "linphone-79424",
+    "storage_bucket": "linphone-79424.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:783084357448:android:b8b3657d82d0ed2ad1157d",
+        "android_client_info": {
+          "package_name": "com.linotik.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4sNrPsy_FaPJWRr5Klg40DHDIEP1xXG4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

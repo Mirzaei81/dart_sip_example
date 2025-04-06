@@ -1,6 +1,6 @@
 {
-    "name": "dart_sip_ua_example",
-    "short_name": "dart_sip_ua_example",
+    "name": "linphone",
+    "short_name": "linphone",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

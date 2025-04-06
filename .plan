@@ -1,0 +1,11 @@
+.added 
+.fix open vpn using pre version 2.6 causing strict null checking error
+.updated android package 
+________________________________
+* check courput sqlite download  ( it should be in binary mode)
+check sdp blocking the call 
+fix background job error
+_____
+adding cgi file to handle post request on token creation
+_________
+record audio on c calls

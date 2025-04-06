@@ -5,18 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "example",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "debug",
-            "deviceId": "windows"
-        },
-        {
-            "name": "example mobile",
+            "name": "phisycal",
             "request": "launch",
             "type": "dart",
             "flutterMode": "debug",
             "deviceId": "M2007J17G"
+        },
+        {
+            "name": "emualtor",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "debug",
+            "deviceId": "sdk gphone64 x86 64"
         },
         {
             "name": "example (profile mode)",
@@ -24,11 +24,5 @@
             "type": "dart",
             "flutterMode": "profile"
         },
-        {
-            "name": "example (release mode)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release"
-        }
     ]
 }

@@ -1,12 +1,16 @@
-import 'package:dart_sip_ua_example/src/messagePage/message_list.dart';
-import 'package:dart_sip_ua_example/src/messagePage/top_nav_message.dart';
+import 'package:linphone/src/classes/call_record.dart';
+import 'package:linphone/src/classes/message.dart';
+import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/messagePage/message_list.dart';
+import 'package:linphone/src/messagePage/top_nav_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MessagePage extends StatefulWidget {
-  MessagePage({super.key});
+  MessagePage();
+
   @override
   State<StatefulWidget> createState() => _MessageWidget();
 }
@@ -28,6 +32,7 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
   late final TabController _bottomTabController;
   late int _activeIndex = 0;
 
+  late Future<(List<MessageDto>, List<MessageDto>, List<MessageDto>)> messages;
   Future<void> _loadName() async {
     final perf = await _prefs;
     setState(() {
@@ -37,6 +42,7 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
 
   @override
   void initState() {
+    messages = DbService.listMessages();
     _tabController = TabController(
         animationDuration: Duration(microseconds: 30), length: 3, vsync: this);
 
@@ -44,7 +50,6 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
         animationDuration: Duration(microseconds: 30), length: 4, vsync: this);
     _bottomTabController.index = 1;
     _bottomTabController.addListener(() {
-      print(bottomTabs[_bottomTabController.index]);
       Navigator.pushNamed(
           context, bottomTabs[_bottomTabController.index] ?? "/");
     });
@@ -78,42 +83,11 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> calls = [
-      {'name': 'xdd', "pinned": false, 'date': DateTime.now(), "is_last": true},
-      {
-        'name': 'xdd',
-        'date': DateTime.now().subtract(Duration(days: 1)),
-        "lastmessage": "test",
-        "pinned": false,
-        "is_last": true
-      },
-      {
-        'name': 'xddddd',
-        "lastmessage": "test",
-        "pinned": true,
-        'date': DateTime.now().subtract(Duration(days: 1)),
-        "is_last": false
-      },
-      {
-        'name': 'Grocery xddddd',
-        "lastmessage": "test",
-        "pinned": false,
-        'date': DateTime.now().subtract(Duration(days: 2)),
-        "is_last": true
-      },
-      {
-        'name': 'Workout xddddd',
-        "lastmessage": "test",
-        'date': DateTime.now().subtract(Duration(days: 3)),
-        "pinned": true,
-        "is_last": true
-      },
-    ];
-
-    return fabActive ? NewMessagePage() : messagesView(calls);
+    return fabActive ? NewMessagePage() : messagesView(messages);
   }
 
-  Scaffold messagesView(List<Map<String, dynamic>> calls) {
+  Scaffold messagesView(
+      Future<(List<MessageDto>, List<MessageDto>, List<MessageDto>)> messages) {
     const String userAsset = "assets/images/user.svg";
     const String bellAsset = "assets/images/Bellsvg.svg";
     const String searchAsset = "assets/images/search.svg";
@@ -125,7 +99,6 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
     const String contactOutlineAsset = "assets/images/contact_outline.svg";
     const String settingsOutlineAsset = "assets/images/settings_outline.svg";
     return Scaffold(
-      // floatingActionButtonAnimator: Fade, TODO
       bottomNavigationBar: Container(
         color: Color(0xf7f7f7f7),
         child: Container(
@@ -229,60 +202,102 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
           )
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "world",
-          ),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Color(0xf7f7f7f7),
-                borderRadius: BorderRadiusDirectional.only(
-                    topEnd: Radius.circular(24), topStart: Radius.circular(24)),
-              ),
-              child: PopScope<Object?>(
-                canPop: false,
-                onPopInvokedWithResult: onPopInvoke,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 20, right: 20),
-                      child: !fabActive
-                          ? TopNavMessage(
-                              tabController: _tabController,
-                              activeIndex: _activeIndex)
-                          : Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
-                              child: Text(
-                                "Results",
-                                textAlign: TextAlign.left,
-                                style: TextStyle(
-                                    color: Color.fromARGB(255, 96, 96, 96),
-                                    fontSize: 8),
+      body: FutureBuilder(
+        future: messages,
+        builder: (b,
+                AsyncSnapshot<
+                        (List<MessageDto>, List<MessageDto>, List<MessageDto>)>
+                    a) =>
+            Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            a.connectionState == ConnectionState.done && a.data != null
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20.0, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("You Have",
+                            style: TextStyle(
+                              color: Colors.white,
+                            )),
+                        Text("${a.data!.$1.length} Unread Messages",
+                            style: TextStyle(
+                              shadows: [
+                                Shadow(
+                                    color: Colors.white, offset: Offset(0, -3))
+                              ],
+                              color: Colors.transparent,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.white,
+                              decorationThickness: 1,
+                            )),
+                        SizedBox(
+                          height: 23,
+                        )
+                      ],
+                    ),
+                  )
+                : SizedBox.shrink(),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Color(0xf7f7f7f7),
+                  borderRadius: BorderRadiusDirectional.only(
+                      topEnd: Radius.circular(24),
+                      topStart: Radius.circular(24)),
+                ),
+                child: PopScope<Object?>(
+                  canPop: false,
+                  onPopInvokedWithResult: onPopInvoke,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 20, right: 20),
+                        child: !fabActive
+                            ? TopNavMessage(
+                                _tabController,
+                                _activeIndex,
+                                a.data == null ? 0 : a.data!.$1.length,
+                                a.data == null ? 0 : a.data!.$2.length,
+                                a.data == null ? 0 : a.data!.$3.length)
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 16.0),
+                                child: Text(
+                                  "Results",
+                                  textAlign: TextAlign.left,
+                                  style: TextStyle(
+                                      color: Color.fromARGB(255, 96, 96, 96),
+                                      fontSize: 8),
+                                ),
                               ),
-                            ),
-                    ),
-                    Expanded(
-                      child: fabActive
-                          ? MessagePage()
-                          : MessageListView(
-                              tabController: _tabController, messages: calls),
-                    ),
-                  ],
+                      ),
+                      Expanded(
+                        child: fabActive
+                            ? Placeholder()
+                            : MessageListView(
+                                tabController: _tabController,
+                                messages: a.data ??
+                                    (
+                                      List<MessageDto>.empty(),
+                                      List<MessageDto>.empty(),
+                                      List<MessageDto>.empty(),
+                                    )),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.miniEndFloat,
       floatingActionButton: fabActive ? null : fabMethod(addAsset),
     );
   }
-
 
   Scaffold NewMessagePage() {
     const String arrowLeftAsset = "assets/images/arrow_left.svg";

@@ -1,0 +1,1 @@
+C:\Users\Mirza\Projects\dart-sip-ua\example\build\app\intermediates\cxx\RelWithDebInfo\1c251d2f\obj\x86_64

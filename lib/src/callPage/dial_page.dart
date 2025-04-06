@@ -1,10 +1,18 @@
+import 'dart:io';
+
+import 'package:flutter_pjsip/flutter_pjsip.dart';
+import 'package:linphone/src/classes/contact.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/widgets/alert.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DialPage extends StatefulWidget {
-  final List<Map<String, dynamic>> contacts;
+  final List<Contact> contacts;
   const DialPage({
-    super.key,
     required this.contacts,
   });
   @override
@@ -12,17 +20,95 @@ class DialPage extends StatefulWidget {
 }
 
 class NumPadWidget extends State<DialPage> {
-  final List<Map<String, dynamic>> contacts;
-
+  final List<Contact> contacts;
   NumPadWidget({required this.contacts});
   String dialNumber = "";
+  late String serverAddress;
+
+  final FlutterPjsip pjsip = FlutterPjsip.instance;
+
+  void _loadSettings() async {
+    SharedPreferencesWithCache _preferences =
+        await SharedPreferencesWithCache.create(
+            cacheOptions: const SharedPreferencesWithCacheOptions());
+    var uri = _preferences.getString('sip_uri') ?? '192.168.5.150';
+    var password = _preferences.getString('password') ?? '';
+    var user = _preferences.getString('auth_user') ?? '';
+    try {
+      await pjsip.pjsipInit(DbService.dbPath);
+      await pjsip.pjsipLogin(
+          ip: uri, password: password, username: user, port: "5060");
+    } catch (error) {
+      alert(context, "error while initing", error.toString());
+    }
+    setState(() {
+      serverAddress = uri;
+    });
+    pjsip.onSipStateChanged.listen((map) {
+      final state = map['call_state'];
+      final remoteUri = map['remote_uri'];
+      switch (state) {
+        case "CALLING":
+          {
+            Navigator.pushNamed(context, "/outgoing",
+                arguments: {"peerNumber": remoteUri});
+            break;
+          }
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
 
   List<bool> activeDigits =
       List<bool>.generate(12, (i) => false, growable: false);
+
+  Future<Widget?> _handleCall(BuildContext context) async {
+    final dest = dialNumber;
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      await Permission.microphone.request();
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      await Permission.phone.request();
+    }
+    if (dest.isEmpty) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Target is empty.'),
+            content: Text('Please enter a SIP URI or username!'),
+            actions: <Widget>[
+              TextButton(
+                child: Text('Ok'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+      return null;
+    }
+    // dialNumber =
+    //     dialNumber.startsWith("0") ? dialNumber.substring(1) : dialNumber;
+    print(dialNumber + "\t" + serverAddress);
+    pjsip.pjsipCall(username: dialNumber, ip: serverAddress, port: "5060");
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     const String callAsset = "assets/images/call_fill.svg";
     const String delAsset = "assets/images/del.svg";
+
     return Container(
         child: Stack(
       children: [
@@ -38,8 +124,8 @@ class NumPadWidget extends State<DialPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(children: [
-                        contacts[index]["img"] != null
-                            ? Image.file(contacts[index]["img"])
+                        contacts[index].imgPath.isNotEmpty
+                            ? Image.file(File(contacts[index].imgPath))
                             : Container(
                                 width: 32,
                                 height: 32,
@@ -52,7 +138,7 @@ class NumPadWidget extends State<DialPage> {
                                 ),
                                 child: Center(
                                     child: Text(
-                                  contacts[index]["name"][0].toUpperCase(),
+                                  contacts[index].name[0].toUpperCase(),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                       color: Color.fromARGB(255, 27, 114, 254)),
@@ -67,12 +153,12 @@ class NumPadWidget extends State<DialPage> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
-                                      '${contacts[index]["name"]}',
+                                      contacts[index].name,
                                       style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w500),
                                     ),
-                                    Text('${contacts[index]["number"]}',
+                                    Text(contacts[index].phoneNumber,
                                         style: TextStyle(
                                             fontSize: 8,
                                             fontWeight: FontWeight.w400,
@@ -110,7 +196,7 @@ class NumPadWidget extends State<DialPage> {
           ),
         ),
         Positioned(
-          top: 200,
+          top: 150,
           left: 28,
           width: 343,
           child: Container(
@@ -571,23 +657,27 @@ class NumPadWidget extends State<DialPage> {
                 ]),
                 Divider(color: Colors.transparent),
                 Column(children: [
-                  Container(
-                    width: 100,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Color.fromARGB(255, 27, 114, 254),
-                      borderRadius: BorderRadius.circular(32),
+                  GestureDetector(
+                    onTap: () {
+                      _handleCall(context);
+                    },
+                    child: Container(
+                      width: 100,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 27, 114, 254),
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                      child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            SvgPicture.asset(callAsset,
+                                colorFilter: ColorFilter.mode(
+                                    Colors.white, BlendMode.srcIn)),
+                          ]),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        SvgPicture.asset(callAsset,
-                            colorFilter: ColorFilter.mode(
-                                Colors.white, BlendMode.srcIn)),
-                      ],
-                    ),
-                  )
+                  ),
                 ]),
               ],
             ),
