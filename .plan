@@ -9,3 +9,6 @@ _____
 adding cgi file to handle post request on token creation
 _________
 record audio on c calls
+______
+wait few second after new channel event sett time out or somthing to wait 
+login the moment you recive push notification

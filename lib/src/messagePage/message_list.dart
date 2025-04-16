@@ -77,13 +77,22 @@ class messageItemBuilder extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(item.peer.name),
-                  Text(
-                    item.content,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: Color.fromRGBO(96, 96, 96, 1),
-                        fontSize: 8,
-                        fontWeight: FontWeight.w400),
+                  Wrap(
+                    direction: Axis.vertical,
+                    spacing: 8.0,
+                    runSpacing: 6.0,
+                    children: [
+                      Text(
+                        item.content,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
+                        maxLines: 1,
+                        style: TextStyle(
+                            color: Color.fromRGBO(96, 96, 96, 1),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w400),
+                      )
+                    ],
                   )
                 ],
               ),

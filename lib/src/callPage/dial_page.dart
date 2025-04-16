@@ -23,17 +23,20 @@ class NumPadWidget extends State<DialPage> {
   final List<Contact> contacts;
   NumPadWidget({required this.contacts});
   String dialNumber = "";
-  late String serverAddress;
+  String serverAddress = '192.168.10.110';
 
   final FlutterPjsip pjsip = FlutterPjsip.instance;
 
   void _loadSettings() async {
-    SharedPreferencesWithCache _preferences =
-        await SharedPreferencesWithCache.create(
-            cacheOptions: const SharedPreferencesWithCacheOptions());
-    var uri = _preferences.getString('sip_uri') ?? '192.168.5.150';
-    var password = _preferences.getString('password') ?? '';
-    var user = _preferences.getString('auth_user') ?? '';
+    var accounts = await DbService.listAcc();
+    var uri = '192.168.10.110';
+    var password = '';
+    var user = '';
+    if (accounts.isNotEmpty) {
+      uri = accounts[0].uri.trim();
+      user = accounts[0].username;
+      password = accounts[0].password;
+    }
     try {
       await pjsip.pjsipInit(DbService.dbPath);
       await pjsip.pjsipLogin(
@@ -222,8 +225,11 @@ class NumPadWidget extends State<DialPage> {
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
                         onTapDown: (_) => setState(() {
-                          dialNumber =
-                              dialNumber.substring(0, dialNumber.length - 1);
+                          dialNumber = dialNumber.substring(
+                              0,
+                              dialNumber.isNotEmpty
+                                  ? dialNumber.length - 1
+                                  : null);
                         }),
                         onLongPress: () => setState(() {
                           dialNumber = "";

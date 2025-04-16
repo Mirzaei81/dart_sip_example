@@ -1,9 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_pjsip/flutter_pjsip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:linphone/src/classes/call_record.dart';
 import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/widgets/funcPad.dart';
@@ -22,6 +24,8 @@ class OutgoinCallWidget extends State<Outgoing> {
   OutgoinCallWidget();
   bool showNumpad = false;
   late final String serverAddress;
+  late String peerNumber = "";
+  late Contact calle;
 
   final FlutterPjsip pjsip = FlutterPjsip.instance;
 
@@ -59,12 +63,12 @@ class OutgoinCallWidget extends State<Outgoing> {
   }
 
   void _loadSettings() async {
-    SharedPreferencesWithCache _preferences =
-        await SharedPreferencesWithCache.create(
-            cacheOptions: const SharedPreferencesWithCacheOptions());
-    setState(() {
-      serverAddress = _preferences.getString('sip_uri') ?? '192.168.10.110';
-    });
+    var accounts = await DbService.listAcc();
+    if (accounts.isNotEmpty) {
+      setState(() {
+        serverAddress = accounts[0].uri;
+      });
+    }
   }
 
   Future<Contact?> getContact(String number) async {
@@ -74,6 +78,26 @@ class OutgoinCallWidget extends State<Outgoing> {
   @override
   void initState() {
     super.initState();
+    pjsip.onSipStateChanged.listen((data) {
+      print("*******$data***");
+      if (data["call_state"] == "EARLY") {
+        String number = data["remote_uri"].split("@")[0].split(":")[1];
+        setState(() {
+          peerNumber = number;
+        });
+        DbService.getContact(number).then((c) {
+          if (c != null) {
+            setState(() {
+              calle = c;
+            });
+          }
+        });
+      }
+      if (data["call_state"] == "DISCONNECTED") {
+        Navigator.pushNamed(context, "/");
+      }
+      ;
+    });
     _loadSettings();
   }
 

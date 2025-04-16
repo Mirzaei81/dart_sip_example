@@ -9,6 +9,7 @@ plugins {
 }
 dependencies {
     implementation 'com.google.firebase:firebase-messaging:24.1.1'
+    implementation 'com.google.gms.google-services:com.google.gms.google-services.gradle.plugin:4.4.2'
 }
 
 def localProperties = new Properties()
@@ -31,6 +32,7 @@ if (flutterVersionName == null) {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.aar"])
     implementation 'androidx.preference:preference:1.2.1'
+    implementation 'androidx.compose.ui:ui-graphics-android:1.7.8'
 }
 
 android {

@@ -21,7 +21,7 @@ class DbService {
   DbService._internal();
 
   @override
-  String toString() {
+  static String sToString() {
     return "DB:${_db.path}";
   }
 
@@ -31,10 +31,12 @@ class DbService {
 
   static Future<void> initdb() async {
     WidgetsFlutterBinding.ensureInitialized();
-    final databasePath = await getDatabasesPath();
-    final path = "$databasePath/linotik.db";
-    _db = await openDatabase(path,
-        version: 1, onCreate: _createDatabase, onConfigure: _onConfigure);
+    if (Platform.isAndroid || Platform.isIOS) {
+      final databasePath = await getDatabasesPath();
+      final path = "$databasePath/linotik.db";
+      _db = await openDatabase(path,
+          version: 1, onCreate: _createDatabase, onConfigure: _onConfigure);
+    }
   }
 
   static Future<List<Accounts>> listAcc() async {
@@ -51,8 +53,8 @@ class DbService {
   }
 
   static Future<Contact?> getContact(String phone) async {
-    List<Map> map =
-        await _db.query("contacts", where: "phone_number", whereArgs: [phone]);
+    List<Map> map = await _db
+        .query("person", where: "phone_number = ?", whereArgs: [phone]);
     if (map.isEmpty) {
       return null;
     }
@@ -64,21 +66,30 @@ class DbService {
   }
 
   static Future<List<CallRecord>> listRecords() async {
-    final List<Map<String, Object?>> recordMaps =
-        await _db.query('call_records');
+    final List<Map<String, Object?>> recordMaps = await _db.rawQuery('''
+      select call_records.id,person.name,person.img_path,person.phone_number,call_records.date,call_records.incoming,call_records.record_path,call_records.missed
+      from call_records 
+      join person  on call_records.personId = person.id 
+      ''');
+    List<CallRecord> recordList = List<CallRecord>.empty(growable: true);
+    for (var record in recordMaps) {
+      recordList.add(CallRecord(
+        id: record["id"] as int,
+        name: record["name"] as String,
+        avatarPath: (record["img_path"] ?? "") as String,
+        date: DateTime.parse(record["date"] as String),
+        incoming: record["incoming"] == 1,
+        missed: record["missed"] == 1,
+        calleNumber: record["phone_number"] as String,
+        recordPath: record["record_path"] as String,
+      ));
+    }
+    ;
+    return recordList;
+  }
 
-    return [
-      for (var record in recordMaps)
-        CallRecord(
-          name: record["name"] as String,
-          avatarPath: record["avatarPath"] as String,
-          date: record["date"] as DateTime,
-          incoming: record["incoming"] as bool,
-          missed: record["missed"] as bool,
-          calleNumber: record["calleNumber"] as String,
-          recordPath: record["recordPath"] as String,
-        )
-    ];
+  static Future<void> removeCallRecord(int id) async {
+    await _db.delete("call_records", where: "id = ?", whereArgs: [id]);
   }
 
   static Future<int> insertRecords(CallRecord values) async {
@@ -89,7 +100,7 @@ class DbService {
   }
 
   static Future<List<Contact>> listContacts() async {
-    final List<Map<String, Object?>> contactsMaps = await _db.query("contacts");
+    final List<Map<String, Object?>> contactsMaps = await _db.query("person");
     List<Contact> contacts = [
       for (var record in contactsMaps)
         Contact(
@@ -102,7 +113,7 @@ class DbService {
   }
 
   static Future<int> insertContacts(Contact values) async {
-    int id = await _db.insert('contacts', values.toMap(),
+    int id = await _db.insert('person', values.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
 
     return id;
@@ -112,9 +123,9 @@ class DbService {
       listMessages() async {
     final List<Map<String, Object?>> messagesMaps =
         await _db.rawQuery("""SELECT *
-      FROM contacts
+      FROM person
       JOIN messages
-      ON contacts.id = messages.peerId;
+      ON person.id = messages.peerId;
     """);
     List<MessageDto> allMessages = [];
     List<MessageDto> readMessages = [];
@@ -175,7 +186,7 @@ class DbService {
   static Future<int> _getConvId(String senderPhone) async {
     const getConvIdSql = '''
     SELECT c.id 
-    FROM contacts c
+    FROM person c
     WHERE c.phone_number = ?
     LIMIT 1;
   ''';
@@ -193,24 +204,23 @@ class DbService {
 
       for (var row in await targetdb
           .rawQuery("select sender, content, recvtime from smsrecv")) {
-        var contact = await _db.query("contacts",
+        var contact = await _db.query("person",
             distinct: true,
             where: "phone_number = ?",
             whereArgs: [row["sender"]]);
         int contactId = 0;
         if (contact.isEmpty) {
           contactId = await _db.rawInsert('''
-        INSERT INTO contacts (name, img_path, phone_number)
+        INSERT INTO person (name, img_path, phone_number)
         VALUES (?, ?, ?)
       ''', [row['sender'], '', row['sender']]);
         } else {
           contactId = contact[0]["id"] as int;
         }
-        var msgId = await _db.rawInsert('''
+        await _db.rawInsert('''
           INSERT INTO messages (content, dateSend, peerId , isPinned)
           VALUES (?, ?, ?, ?)
         ''', [row['content'], row['recvtime'], contactId, '0']);
-        print(msgId);
       }
       await targetdb.close();
     }
@@ -223,8 +233,8 @@ class DbService {
     personId VARCHAR(255) NOT NULL,
     date DATETIME NOT NULL,
     incoming BOOLEAN NOT NULL,
-    caller_number VARCHAR(20) NOT NULL,
-    record_path VARCHAR(255) NOT NULL
+    missed BOOLEAN NOT NULL,
+    record_path VARCHAR(255) NOT NULL,
     FOREIGN KEY(personId) REFERENCES person(id)
   );
   ''');
@@ -243,6 +253,9 @@ class DbService {
     phone_number VARCHAR(20) NOT NULL
   );
   ''');
+    await database.execute('''
+    insert into person(id,name,img_path,phone_number) VALUES(1,'unknown','','')
+  ''');
     return await database.execute('''
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,7 +264,7 @@ class DbService {
     isPinned INTEGER Not NULL DEFAULT 0,
     read INTEGER Not NULL DEFAULT 0,
     peerId int NOT NULL,
-    FOREIGN KEY(peerId) REFERENCES contacts(id)
+    FOREIGN KEY(peerId) REFERENCES person(id)
   );
   ''');
   }

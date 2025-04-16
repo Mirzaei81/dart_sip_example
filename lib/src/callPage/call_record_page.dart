@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_pjsip/flutter_pjsip.dart';
 import 'package:ftpconnect/ftpConnect.dart';
 import 'package:http/http.dart' as http;
 import 'package:linphone/src/callPage/dial_page.dart';
 import 'package:linphone/src/callPage/call_record_list.dart';
 import 'package:linphone/src/callPage/top_nav_calls.dart';
+import 'package:linphone/src/classes/accounts.dart';
 import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/call_record.dart';
 import 'package:linphone/src/classes/db.dart';
@@ -43,7 +47,7 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   late final TabController _tabController;
   late final TabController _bottomTabController;
   late int _activeIndex = 0;
-  late Future<List<CallRecord>> callRecords = Future(List.empty);
+  Future<List<CallRecord>> callRecords = Future(List<CallRecord>.empty);
   late final Future<List<Contact>> contacts;
   bool loading = false;
 
@@ -54,10 +58,10 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> loadDb() async {
-    bool fetched = (await _prefs).getBool("fetched") ?? false;
-    if (fetched) {
-      String address = (await _prefs).getString("sip_uri") ?? '192.168.10.110';
+  Future<void> loadDb(SharedPreferencesWithCache p, String address) async {
+    bool fetched = p.getBool("fetched") ?? false;
+    if (!fetched) {
+      context.loaderOverlay.show();
       FTPConnect ftpClient =
           FTPConnect(address, user: 'root', pass: 'ys123456', timeout: 10);
       try {
@@ -75,10 +79,12 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
             setState(() {
               loading = false;
             });
+            p.setBool("fetched", true);
+            context.loaderOverlay.hide();
+            await ftpClient.disconnect();
+          } else {
+            alert(context, "Connection Failure", "Failed to connect to server");
           }
-          await ftpClient.disconnect();
-          context.loaderOverlay.hide();
-          (await _prefs).setBool("fetched", true);
         } else {
           alert(context, "Connection Failure", "Failed to connect to server");
         }
@@ -92,30 +98,44 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
     }
     context.loaderOverlay.hide();
     await _loadName();
-    callRecords = DbService.listRecords(); // future builder will resolve this
-    contacts = DbService.listContacts();
+  }
+
+  void initHandler() async {
+    var accounts = await DbService.listAcc();
+    if (accounts.isEmpty) {
+      Navigator.pushNamed(context, "/register");
+      return;
+    }
+    await Permission.storage.request();
+    await Permission.notification.request();
+    var p = await _prefs;
+    var success = await FlutterPjsip.instance.pjsipInit(DbService.dbPath);
+    if (!success && !kDebugMode) {
+      alert(context, "Internal Error",
+          "Somthing went wrong while trying to initlize sdk");
+    }
+    var logined = await FlutterPjsip.instance.pjsipLogin(
+        username: accounts[0].username,
+        password: accounts[0].password,
+        ip: accounts[0].uri,
+        port: "5060"); //TODO
+    print(accounts[0].uri +
+        accounts[0].username +
+        accounts[0].password +
+        logined.toString());
+    await loadDb(p, accounts[0].uri.trim());
+    var token = p.getString("token");
+    if (token == null) {
+      await registerToken(accounts[0].uri.trim(), context, p);
+    }
   }
 
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Permission.storage.request().then(print);
-      Permission.notification.request().then((PermissionStatus perm) {
-        print(perm.toString());
-      });
-      DbService.listAcc().then((accounts) {
-        accounts.isEmpty
-            ? Navigator.pushNamed(context, "/register")
-            : {
-                loadDb(),
-                _prefs.then((p) {
-                  var token = p.getString("token");
-                  if (token == null) {
-                    registerToken(accounts[0].uri.trim(), context, p);
-                  }
-                })
-              };
-      });
+      contacts = DbService.listContacts();
+      callRecords = DbService.listRecords();
+      initHandler();
     });
 
     _tabController = TabController(
@@ -315,7 +335,7 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
                           ],
                         ),
                       )
-                    : const SizedBox.shrink(),
+                    : SizedBox(),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -359,9 +379,14 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
                                         : DialPage(
                                             contacts:
                                                 snapshot.data ?? List.empty()))
-                                : HistoryListView(
-                                    tabController: _tabController,
-                                    calls: snapshot.data ?? List.empty()),
+                                : AnimatedSwitcher(
+                                    duration: Duration(milliseconds: 300),
+                                    child: snapshot.data == null
+                                        ? HistoryListView(
+                                            tabController: _tabController,
+                                            calls: snapshot.data!)
+                                        : SizedBox.shrink(),
+                                  ),
                           ),
                         ],
                       ),
@@ -413,7 +438,7 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   }
 }
 
-void registerToken(String address, BuildContext context,
+Future<void> registerToken(String address, BuildContext context,
     SharedPreferencesWithCache perf) async {
   await Firebase.initializeApp();
   String? token = await FirebaseMessaging.instance.getToken();
@@ -431,7 +456,7 @@ void sendToken(address, token, context, SharedPreferencesWithCache perf) async {
     'Connection': 'keep-alive',
     'Content-Type': 'application/x-www-form-urlencoded',
     'Origin': 'http://$address',
-    'Referer': 'http://$address/linphone_cgi/TokenCGI?15000',
+    'Referer': 'http://$address/linotik_cgi/TokenCGI?15000',
     'Sec-GPC': '1',
     'Upgrade-Insecure-Requests': '1',
     'User-Agent':
@@ -444,14 +469,14 @@ void sendToken(address, token, context, SharedPreferencesWithCache perf) async {
     'token': token,
   };
 
-  final url = Uri.parse('http://$address/linphone_cgi/TokenCGI?15000');
+  final url = Uri.parse('http://$address/linotik_cgi/TokenCGI?15000');
   try {
     var res = await http.post(url, headers: headers, body: data);
     var status = res.statusCode;
     if (status != 200) {
       alert(context, "Connection Failure", "Failed to connect to server");
+      return;
     }
-    print(res.body);
     perf.setString("token", token);
   } catch (except) {
     alert(context, "Connection Failure", "Failed to connect to server");

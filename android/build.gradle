@@ -1,5 +1,19 @@
+buildscript {
+    repositories {
+        maven { url 'https://dl.google.com' }
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android:zipflinger:8.7.3'
+        classpath 'com.android.tools.build:apksig:8.7.3'
+        classpath 'com.android.tools.build:apkzlib:8.7.3'
+        classpath 'com.google.gms:google-services:4.4.2'
+    }
+}
 allprojects {
     repositories {
+        maven { url 'https://dl.google.com' }
         google()
         mavenCentral()
     }

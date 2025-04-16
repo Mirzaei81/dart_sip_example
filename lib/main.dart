@@ -1,3 +1,4 @@
+import 'package:linphone/src/callPage/incoming.dart';
 import 'package:linphone/src/callPage/outgoing.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/contactsPage/contacts.dart';
@@ -41,7 +42,7 @@ class MyApp extends StatelessWidget {
       '/settings': ([Object? arguments]) => SettingsPage(),
       '/register': ([Object? arguments]) => RegisterWidget(),
       "/outgoing": ([Object? arguments]) => Outgoing(),
-      "/incoming": ([Object? arguments]) => Outgoing(),
+      "/incoming": ([Object? arguments]) => Incoming(),
       '/about': ([Object? arguments]) => AboutWidget(),
     };
   }
@@ -79,14 +80,14 @@ class MyApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'Flutter Demo',
         theme: targetTheme,
-        initialRoute: '/',
+        initialRoute: '/incoming',
         onGenerateRoute: _onGenerateRoute,
       ),
     );
   }
 }
 
-// 9192233484
+//
 //
 // Future<void> oVpnConnection() async {
 //   WidgetsFlutterBinding.ensureInitialized();

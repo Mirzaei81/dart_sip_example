@@ -4,10 +4,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/db.dart';
-import 'package:linphone/src/widgets/funcPad.dart';
-import 'package:linphone/src/widgets/numpad.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:linphone/src/widgets/callSlider.dart';
+import 'package:linphone/src/widgets/gradiantText.dart';
 
 class Incoming extends StatefulWidget {
   Incoming();
@@ -16,52 +14,31 @@ class Incoming extends StatefulWidget {
   State<StatefulWidget> createState() => OutgoinCallWidget();
 }
 
-class OutgoinCallWidget extends State<Incoming> {
+class OutgoinCallWidget extends State<Incoming>
+    with SingleTickerProviderStateMixin {
   bool showNumpad = false;
   late final String serverAddress;
 
   final FlutterPjsip pjsip = FlutterPjsip.instance;
+  bool answerClicked = false;
+  bool rejectClicked = false;
+  double answer = 0;
+  double reject = 1;
+  late AnimationController _controller;
+  late Animation<double> _sizeAnimation;
 
-  Future<void> _addCall(String number) async {
-    await pjsip.pjsipCall(username: number, ip: serverAddress, port: "5060");
-  }
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 1),
+    );
 
-  Future<void> _endCall() async {
-    bool refused = await pjsip.pjsipRefuse();
-    await Navigator.pushNamed(context, "/");
-    return null;
-  }
+    _sizeAnimation = Tween<double>(begin: 48, end: 64)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-  Future<void> _bluetooth() async {
-    await Permission.bluetooth.request();
-    return null;
-  }
-
-  Future<void> _hold() async {
-    await pjsip.pjsipHold();
-    return null;
-  }
-
-  Future<void> _unHold() async {
-    await pjsip.pjsipReinvite();
-    return null;
-  }
-
-  Future<void> _speaker() async {
-    await pjsip.pjsipHandsFree();
-  }
-
-  Future<void> _mute() async {
-    await pjsip.pjsipMute();
-  }
-
-  void _loadSettings() async {
-    SharedPreferencesWithCache _preferences =
-        await SharedPreferencesWithCache.create(
-            cacheOptions: const SharedPreferencesWithCacheOptions());
-    setState(() {
-      serverAddress = _preferences.getString('sip_uri') ?? '192.168.10.110';
-    });
+    _controller.forward();
   }
 
   Future<Contact?> getContact(String number) async {
@@ -69,37 +46,30 @@ class OutgoinCallWidget extends State<Incoming> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  void displayNumpad() {
-    setState(() {
-      showNumpad = !showNumpad;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final arguments = (ModalRoute.of(context)?.settings.arguments ??
-        <String, dynamic>{}) as Map;
+    const String userAsset = "assets/images/user_fill.svg";
 
-    const String userAsset = "assets/images/user_no_outline.svg";
-    return Container(
-        decoration: BoxDecoration(
-            gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Color.fromRGBO(27, 115, 254, 1), Colors.white])),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SizedBox(height: 77),
-            FutureBuilder(
-              future: getContact(arguments["peerNumber"] ?? ""),
-              builder: (ctx, AsyncSnapshot<Contact?> snap) => Column(
+    return GestureDetector(
+      onTap: () => {
+        setState(() {
+          rejectClicked = false;
+          reject = 1;
+          answer = 0;
+          answerClicked = false;
+        })
+      },
+      child: Container(
+          decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Color.fromRGBO(27, 115, 254, 1), Colors.white])),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
                 children: [
+                  SizedBox(height: 77),
                   Container(
                     decoration: BoxDecoration(
                         shape: BoxShape.circle,
@@ -137,11 +107,7 @@ class OutgoinCallWidget extends State<Incoming> {
                             height: 80,
                             padding: EdgeInsets.all(20),
                             child: SvgPicture.asset(
-                              (snap.connectionState == ConnectionState.active &&
-                                      snap.data != null &&
-                                      snap.data!.imgPath.isEmpty)
-                                  ? snap.data!.imgPath
-                                  : userAsset,
+                              userAsset,
                               colorFilter: ColorFilter.mode(
                                   Color.fromRGBO(27, 115, 254, 0.7),
                                   BlendMode.srcIn),
@@ -149,27 +115,141 @@ class OutgoinCallWidget extends State<Incoming> {
                           )),
                     ),
                   ),
-                  Text((snap.connectionState == ConnectionState.active &&
-                          snap.data != null &&
-                          snap.data!.name.isEmpty)
-                      ? snap.data!.name
-                      : ""),
-                  Text(arguments["peerNumber"] ?? "")
+                  Text(""), // TODO add name and number and asset path
+                  Text("")
                 ],
               ),
-            ),
-            Container(
-              alignment: Alignment.bottomCenter,
-              child: showNumpad
-                  ? Numpad(
-                      (arguments["peerNumber"] ?? "")
-                          .split("@")[0]
-                          .substring("sip:".length),
-                      (number) => _addCall(number))
-                  : funcPad(_endCall, (number) => _addCall(number), _hold,
-                      _bluetooth, _speaker, _mute, displayNumpad),
-            ),
-          ],
-        ));
+              Container(
+                  alignment: Alignment.bottomCenter,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      margin: EdgeInsets.symmetric(vertical: 50),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Stack(children: [
+                            answerClicked
+                                ? Positioned(
+                                    top: 20,
+                                    right: 12,
+                                    child: GradientText(
+                                      "Slide to Answer",
+                                      gradient: LinearGradient(colors: [
+                                        Colors.white,
+                                        Color.fromRGBO(155, 155, 155, 1),
+                                        Color.fromRGBO(27, 115, 254, 1)
+                                      ], stops: [
+                                        0,
+                                        0.2,
+                                        0.6
+                                      ]),
+                                    ),
+                                  )
+                                : SizedBox.shrink(),
+                            AnimatedBuilder(
+                              animation: _sizeAnimation,
+                              builder: (context, child) => SliderTheme(
+                                data: SliderThemeData(
+                                  padding: EdgeInsets.only(left: 6),
+                                  trackHeight: 64,
+                                  activeTrackColor: answerClicked
+                                      ? Colors.white.withAlpha(156)
+                                      : Colors.transparent,
+                                  inactiveTrackColor: answerClicked
+                                      ? Colors.white.withAlpha(156)
+                                      : Colors.transparent,
+                                  thumbColor: Color.fromARGB(255, 27, 114, 254),
+                                  thumbShape: Callslider(
+                                      thumbRadius: 21,
+                                      iconData: Icons.call,
+                                      size: _sizeAnimation.value),
+                                ),
+                                child: Slider(
+                                    value: answer,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        answer = value;
+                                      });
+                                    },
+                                    onChangeStart: (value) => {
+                                          setState(() {
+                                            answerClicked = true;
+                                          })
+                                        },
+                                    onChangeEnd: (value) {
+                                      setState(() {
+                                        answerClicked = false;
+                                        answer = 0;
+                                      });
+                                    }),
+                              ),
+                            ),
+                          ]),
+                          Stack(
+                            children: [
+                              rejectClicked
+                                  ? Positioned(
+                                      top: 20,
+                                      left: 12,
+                                      child: GradientText(
+                                        "Slide to Reject",
+                                        gradient: LinearGradient(colors: [
+                                          Color.fromARGB(255, 242, 65, 65),
+                                          Color.fromRGBO(155, 155, 155, 1),
+                                          Colors.white,
+                                        ], stops: [
+                                          0,
+                                          0.4,
+                                          1
+                                        ]),
+                                      ),
+                                    )
+                                  : SizedBox.shrink(),
+                              SliderTheme(
+                                data: SliderThemeData(
+                                  padding: EdgeInsets.only(right: 0),
+                                  trackHeight: 64,
+                                  activeTrackColor: rejectClicked
+                                      ? Colors.white.withAlpha(156)
+                                      : Colors.transparent,
+                                  inactiveTrackColor: rejectClicked
+                                      ? Colors.white.withAlpha(156)
+                                      : Colors.transparent,
+                                  thumbColor: Color.fromARGB(255, 242, 65, 65),
+                                  thumbShape: Callslider(
+                                      thumbRadius: 21,
+                                      iconData: Icons.call_end),
+                                ),
+                                child: Slider(
+                                    value: reject,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        reject = value;
+                                      });
+                                    },
+                                    onChangeStart: (value) => {
+                                          print(value),
+                                          setState(() {
+                                            rejectClicked = true;
+                                          })
+                                        },
+                                    onChangeEnd: (value) {
+                                      setState(() {
+                                        print(value);
+                                        rejectClicked = false;
+                                        reject = 1;
+                                      });
+                                    }),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  )),
+            ],
+          )),
+    );
   }
 }

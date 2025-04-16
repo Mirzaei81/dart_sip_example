@@ -81,9 +81,11 @@ class _MyRegisterWidget extends State<RegisterWidget> {
 
   void _loadSettings() async {
     List<Accounts> accounts = await DbService.listAcc();
-    _sipUriController.text = accounts[0].uri;
-    _passwordController.text = accounts[0].password;
-    _authorizationUserController.text = accounts[0].username;
+    if (accounts.isNotEmpty) {
+      _sipUriController.text = accounts[0].uri;
+      _passwordController.text = accounts[0].password;
+      _authorizationUserController.text = accounts[0].username;
+    }
   }
 
   Future<void> _saveSettings() async {
@@ -91,9 +93,9 @@ class _MyRegisterWidget extends State<RegisterWidget> {
         'display_name', _authorizationUserController.text);
     await DbService.insertAcc(Accounts(
         id: 0,
-        uri: _sipUriController.text,
-        username: _authorizationUserController.text,
-        password: _passwordController.text));
+        uri: _sipUriController.text.trim(),
+        username: _authorizationUserController.text.trim(),
+        password: _passwordController.text.trim()));
     return;
   }
 
