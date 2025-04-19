@@ -37,13 +37,6 @@ class NumPadWidget extends State<DialPage> {
       user = accounts[0].username;
       password = accounts[0].password;
     }
-    try {
-      await pjsip.pjsipInit(DbService.dbPath);
-      await pjsip.pjsipLogin(
-          ip: uri, password: password, username: user, port: "5060");
-    } catch (error) {
-      alert(context, "error while initing", error.toString());
-    }
     setState(() {
       serverAddress = uri;
     });

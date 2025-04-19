@@ -1,11 +1,19 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_contacts/diacritics.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_pjsip/flutter_pjsip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:linphone/src/classes/call_record.dart';
 import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/widgets/callSlider.dart';
 import 'package:linphone/src/widgets/gradiantText.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibration/vibration.dart';
 
 class Incoming extends StatefulWidget {
   Incoming();
@@ -24,21 +32,39 @@ class OutgoinCallWidget extends State<Incoming>
   bool rejectClicked = false;
   double answer = 0;
   double reject = 1;
-  late AnimationController _controller;
-  late Animation<double> _sizeAnimation;
+
+  late String callerNumber = "";
+  late String callerName = "";
+  late String callerImgPath = "";
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  void loadSettings() async {
+    FlutterPjsip.instance.onSipStateChanged.listen((map) {
+      final state = map['call_state'];
+      final remoteUri = map['remote_uri'];
+      setState(() {
+        callerName = remoteUri;
+        callerNumber = remoteUri;
+      });
+      if (state == "DISCONNECTED") {
+        HapticFeedback.mediumImpact();
+        SystemNavigator.pop();
+      }
+    });
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.reload();
+    setState(() {
+      callerName = preferences.getString("caller_name") ?? "";
+      callerNumber = preferences.getString("caller_number") ?? "";
+      callerImgPath = preferences.getString("caller_img_path") ?? "";
+      print(callerName + "\t" + callerNumber + "\t" + callerImgPath);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Duration(seconds: 1),
-    );
-
-    _sizeAnimation = Tween<double>(begin: 48, end: 64)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    _controller.forward();
+    loadSettings();
   }
 
   Future<Contact?> getContact(String number) async {
@@ -115,8 +141,14 @@ class OutgoinCallWidget extends State<Incoming>
                           )),
                     ),
                   ),
-                  Text(""), // TODO add name and number and asset path
-                  Text("")
+                  Text(callerName,
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  Text(callerName,
+                      style: TextStyle(
+                          color: Color.fromRGBO(27, 115, 254, 1),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500))
                 ],
               ),
               Container(
@@ -147,43 +179,47 @@ class OutgoinCallWidget extends State<Incoming>
                                     ),
                                   )
                                 : SizedBox.shrink(),
-                            AnimatedBuilder(
-                              animation: _sizeAnimation,
-                              builder: (context, child) => SliderTheme(
-                                data: SliderThemeData(
-                                  padding: EdgeInsets.only(left: 6),
-                                  trackHeight: 64,
-                                  activeTrackColor: answerClicked
-                                      ? Colors.white.withAlpha(156)
-                                      : Colors.transparent,
-                                  inactiveTrackColor: answerClicked
-                                      ? Colors.white.withAlpha(156)
-                                      : Colors.transparent,
-                                  thumbColor: Color.fromARGB(255, 27, 114, 254),
-                                  thumbShape: Callslider(
-                                      thumbRadius: 21,
-                                      iconData: Icons.call,
-                                      size: _sizeAnimation.value),
+                            SliderTheme(
+                              data: SliderThemeData(
+                                padding: EdgeInsets.only(left: 6),
+                                trackHeight: 64,
+                                activeTrackColor: answerClicked
+                                    ? Colors.white.withAlpha(156)
+                                    : Colors.transparent,
+                                inactiveTrackColor: answerClicked
+                                    ? Colors.white.withAlpha(156)
+                                    : Colors.transparent,
+                                thumbColor: Color.fromARGB(255, 27, 114, 254),
+                                thumbShape: Callslider(
+                                  thumbRadius: 21,
+                                  iconData: Icons.call,
                                 ),
-                                child: Slider(
-                                    value: answer,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        answer = value;
-                                      });
-                                    },
-                                    onChangeStart: (value) => {
-                                          setState(() {
-                                            answerClicked = true;
-                                          })
-                                        },
-                                    onChangeEnd: (value) {
-                                      setState(() {
-                                        answerClicked = false;
-                                        answer = 0;
-                                      });
-                                    }),
                               ),
+                              child: Slider(
+                                  value: answer,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      answer = value;
+                                    });
+                                  },
+                                  onChangeStart: (value) => {
+                                        setState(() {
+                                          answerClicked = true;
+                                        })
+                                      },
+                                  onChangeEnd: (value) {
+                                    setState(() {
+                                      if (value == 1) {
+                                        _flutterLocalNotificationsPlugin
+                                            .cancel(0);
+                                        Vibration.cancel();
+                                        Navigator.pushNamed(
+                                            context, "/outgoing");
+                                      }
+                                      answerClicked = false;
+                                      answer = 0;
+                                    });
+                                  }),
                             ),
                           ]),
                           Stack(
@@ -229,14 +265,28 @@ class OutgoinCallWidget extends State<Incoming>
                                       });
                                     },
                                     onChangeStart: (value) => {
-                                          print(value),
                                           setState(() {
                                             rejectClicked = true;
                                           })
                                         },
                                     onChangeEnd: (value) {
                                       setState(() {
-                                        print(value);
+                                        if (value == 0) {
+                                          _flutterLocalNotificationsPlugin
+                                              .cancel(0);
+                                          Vibration.cancel();
+                                          Vibration.cancel();
+                                          DbService.insertRecords(CallRecord(
+                                              id: -1,
+                                              name: callerName,
+                                              date: DateTime.now(),
+                                              incoming: true,
+                                              missed: true,
+                                              calleNumber: callerNumber,
+                                              avatarPath: callerImgPath,
+                                              recordPath: ""));
+                                          SystemNavigator.pop();
+                                        }
                                         rejectClicked = false;
                                         reject = 1;
                                       });

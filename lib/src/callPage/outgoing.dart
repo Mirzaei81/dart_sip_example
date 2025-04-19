@@ -12,6 +12,7 @@ import 'package:linphone/src/widgets/funcPad.dart';
 import 'package:linphone/src/widgets/numpad.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibration/vibration.dart';
 
 class Outgoing extends StatefulWidget {
   Outgoing();
@@ -78,6 +79,8 @@ class OutgoinCallWidget extends State<Outgoing> {
   @override
   void initState() {
     super.initState();
+    Vibration.cancel();
+    FlutterPjsip.instance.pjsipReceive();
     pjsip.onSipStateChanged.listen((data) {
       print("*******$data***");
       if (data["call_state"] == "EARLY") {

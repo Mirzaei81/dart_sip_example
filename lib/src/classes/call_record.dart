@@ -19,7 +19,7 @@ class CallRecord {
       required this.recordPath});
   Map<String, Object?> toMap() {
     return {
-      "id": id,
+      "id": this.id,
       "name": name,
       "avatarPath": avatarPath,
       "date": date,

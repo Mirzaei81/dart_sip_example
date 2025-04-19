@@ -89,13 +89,31 @@ class _MyRegisterWidget extends State<RegisterWidget> {
   }
 
   Future<void> _saveSettings() async {
+    print("saving");
     await _preferences.setString(
         'display_name', _authorizationUserController.text);
-    await DbService.insertAcc(Accounts(
+    var acc = Accounts(
         id: 0,
         uri: _sipUriController.text.trim(),
         username: _authorizationUserController.text.trim(),
-        password: _passwordController.text.trim()));
+        password: _passwordController.text.trim());
+    await DbService.insertAcc(acc);
+    try {
+      await FlutterPjsip.instance.pjsipInit(DbService.dbPath);
+    } catch (err) {
+      print(err);
+    }
+    ;
+    var State = await FlutterPjsip.instance.pjsipLogin(
+        username: acc.username,
+        password: acc.password,
+        ip: acc.uri,
+        port: "5060");
+    FlutterPjsip.instance.onSipStateChanged.listen((map) {
+      print(map);
+    });
+    registrationStateChanged(State);
+
     return;
   }
 
@@ -113,22 +131,8 @@ class _MyRegisterWidget extends State<RegisterWidget> {
     context.loaderOverlay.show(
         widgetBuilder: (progress) =>
             ConnectingOverlay(progress ?? "", "Connecting..."));
-    _saveSettings().then((_) {
-      pjsip.pjsipInit(DbService.dbPath).then((v) => {
-            if (!v && kDebugMode)
-              {
-                alert(context, "Internal Error",
-                    "Somthing went wrong while trying to initlize sdk")
-              }
-          });
-      pjsip
-          .pjsipLogin(
-              username: _authorizationUserController.text,
-              password: _passwordController.text,
-              ip: _sipUriController.text,
-              port: "5060")
-          .then(registrationStateChanged);
-    });
+
+    _saveSettings().then((_) {});
   }
 
   @override
@@ -245,7 +249,6 @@ class _MyRegisterWidget extends State<RegisterWidget> {
                   SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      print("registering");
                       _register(context);
                     },
                     child: Text(

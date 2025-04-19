@@ -59,6 +59,7 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   }
 
   Future<void> loadDb(SharedPreferencesWithCache p, String address) async {
+    await p.remove("fetched");
     bool fetched = p.getBool("fetched") ?? false;
     if (!fetched) {
       context.loaderOverlay.show();
@@ -108,21 +109,9 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
     }
     await Permission.storage.request();
     await Permission.notification.request();
+    FlutterPjsip instence = FlutterPjsip.instance;
     var p = await _prefs;
-    var success = await FlutterPjsip.instance.pjsipInit(DbService.dbPath);
-    if (!success && !kDebugMode) {
-      alert(context, "Internal Error",
-          "Somthing went wrong while trying to initlize sdk");
-    }
-    var logined = await FlutterPjsip.instance.pjsipLogin(
-        username: accounts[0].username,
-        password: accounts[0].password,
-        ip: accounts[0].uri,
-        port: "5060"); //TODO
-    print(accounts[0].uri +
-        accounts[0].username +
-        accounts[0].password +
-        logined.toString());
+    await instence.pjsipInit(DbService.dbPath);
     await loadDb(p, accounts[0].uri.trim());
     var token = p.getString("token");
     if (token == null) {
@@ -133,10 +122,10 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      contacts = DbService.listContacts();
-      callRecords = DbService.listRecords();
       initHandler();
     });
+    contacts = DbService.listContacts();
+    callRecords = DbService.listRecords();
 
     _tabController = TabController(
         animationDuration: Duration(microseconds: 30), length: 4, vsync: this);
@@ -312,30 +301,31 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
           future: callRecords,
           builder: (context, snapshot) =>
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                snapshot.hasData
-                    ? Padding(
-                        padding: EdgeInsets.only(left: 16, top: 6, bottom: 28),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("You Have",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w400,
-                                    fontSize: 8)),
-                            Text(
-                                "${snapshot.data!.where((data) => data.missed).length.toString()} Missed Calls",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    decorationColor: Colors.white,
-                                    decoration: TextDecoration.underline,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500))
-                          ],
-                        ),
-                      )
-                    : SizedBox(),
+                if (snapshot.hasData)
+                  Padding(
+                    padding: EdgeInsets.only(left: 16, top: 6, bottom: 28),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("You Have",
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w400,
+                                fontSize: 8)),
+                        Text(
+                            "${snapshot.data!.where((data) => data.missed).length.toString()} Missed Calls",
+                            style: TextStyle(
+                                color: Colors.white,
+                                decorationColor: Colors.white,
+                                decoration: TextDecoration.underline,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500))
+                      ],
+                    ),
+                  )
+                else
+                  SizedBox(),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -374,19 +364,17 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
                             child: fabActive
                                 ? FutureBuilder<List<Contact>>(
                                     future: contacts,
-                                    builder: (context, snapshot) => loading
+                                    builder: (context, snapshot) => snapshot
+                                            .hasData
                                         ? CircularProgressIndicator()
                                         : DialPage(
                                             contacts:
                                                 snapshot.data ?? List.empty()))
-                                : AnimatedSwitcher(
-                                    duration: Duration(milliseconds: 300),
-                                    child: snapshot.data == null
-                                        ? HistoryListView(
-                                            tabController: _tabController,
-                                            calls: snapshot.data!)
-                                        : SizedBox.shrink(),
-                                  ),
+                                : snapshot.hasData
+                                    ? HistoryListView(
+                                        tabController: _tabController,
+                                        calls: snapshot.data!)
+                                    : Text("no data"),
                           ),
                         ],
                       ),

@@ -1,10 +1,17 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:linphone/src/classes/call_record.dart';
 import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/classes/contact.dart' as DbContact;
 import 'package:linphone/src/contactsPage/contact_list.dart';
 import 'package:linphone/src/contactsPage/top_nav_contacts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ContactPage extends StatefulWidget {
@@ -33,7 +40,26 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
   late List<CallRecord> _records = List<CallRecord>.empty();
 
   Future<void> _loadName() async {
+    final String path = (await getApplicationDocumentsDirectory()).path;
     final perf = await _prefs;
+    var contactsSet = perf.getBool("set_contacts") ?? false;
+    if (!contactsSet) {
+      if (await FlutterContacts.requestPermission()) {
+        var contacts = await FlutterContacts.getContacts();
+        for (var c in contacts) {
+          var path = "";
+          if (c.photo != null && c.photo!.isNotEmpty) {
+            path = path + separator + c.id.toString();
+            var f = File(path);
+            f.writeAsString(base64Encode(c.photo as List<int>));
+          }
+          DbService.insertContacts(DbContact.Contact(
+              name: c.displayName,
+              phoneNumber: c.phones[0].number,
+              imgPath: path));
+        }
+      }
+    }
     setState(() {
       _name = perf.getString("display_name") ?? "";
     });

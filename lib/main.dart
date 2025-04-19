@@ -20,6 +20,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Logging.Logger.level = Logging.Level.debug;
   await DbService.initdb();
+
   // await oVpnConnection();
   runApp(
     MultiProvider(
@@ -80,7 +81,7 @@ class MyApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'Flutter Demo',
         theme: targetTheme,
-        initialRoute: '/incoming',
+        initialRoute: '/',
         onGenerateRoute: _onGenerateRoute,
       ),
     );

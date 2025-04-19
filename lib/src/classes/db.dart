@@ -250,7 +250,7 @@ class DbService {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR(255) NOT NULL,
     img_path VARCHAR(255) NOT NULL,
-    phone_number VARCHAR(20) NOT NULL
+    phone_number VARCHAR(20)  NOT NULL UNIQUE
   );
   ''');
     await database.execute('''

@@ -51,6 +51,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.embedding.engine.loader.FlutterLoader;
+import io.flutter.plugins.GeneratedPluginRegistrant;
 
 
 public class CallNotificationService extends FirebaseMessagingService {
@@ -72,11 +75,14 @@ public class CallNotificationService extends FirebaseMessagingService {
         try {
             PjSipManager instence = PjSipManager.getInstance();
             instence.libRegThread(Thread.currentThread().getName());
+            instence.deinit();
+            instence.init(PjSipManager.observer);
             Cursor cursor = db.query("accounts", null,null,null,null,null,null);
             if(cursor.moveToFirst()){
                 String auth_user =cursor.getString(cursor.getColumnIndexOrThrow("username"));
                 String password = cursor.getString(cursor.getColumnIndexOrThrow("password"));
                 String uri = cursor.getString(cursor.getColumnIndexOrThrow("uri"));
+                Log.d(TAG,auth_user+ password+uri +"logging via");
                 instence.login(auth_user,password,uri,"5060");
             }else{
                 instence.login("601","6016o1","192.168.10.110","5060");
@@ -186,10 +192,6 @@ public class CallNotificationService extends FirebaseMessagingService {
         PjSipManager.getInstance().init(PjSipManager.observer);
 
 
-        String replyLabel = getResources().getString(R.string.reply_label);
-        RemoteInput remoteInput = new RemoteInput.Builder(KEY_TEXT_REPLY)
-                .setLabel(replyLabel)
-                .build();
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, MSG_CHANNEL_ID)
                 .setContentTitle(callerName)
                 .setContentText(content)
@@ -213,7 +215,7 @@ public class CallNotificationService extends FirebaseMessagingService {
         Vibrator vibrator = (Vibrator)this.getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
         long[] pattern = {0, 500, 1000};
         VibrationEffect vibrationEffect = VibrationEffect.createWaveform(pattern,1);
-//        vibrator.vibrate(vibrationEffect);
+        vibrator.vibrate(vibrationEffect);
 
         Person.Builder callePerson = new Person.Builder()
                 .setName(callerName.isEmpty()?"test":callerName)
@@ -221,6 +223,14 @@ public class CallNotificationService extends FirebaseMessagingService {
         if(!imgPath.isEmpty()) {
             callePerson.setIcon(IconCompat.createWithContentUri(imgPath));
         }
+
+        SharedPreferences preferences =PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString("caller_name",callerName);
+        editor.putString("caller_number",callerNumber);
+        editor.putString("caller_img_path",imgPath);
+        editor.commit();
+
         Intent endCallIntent =  new Intent(this, CallActionReceiver.class);
         endCallIntent.setAction("ACTION_DECLINE");
         endCallIntent.putExtra("id",personId);
@@ -228,14 +238,15 @@ public class CallNotificationService extends FirebaseMessagingService {
 
 
         Intent answerCallIntent =FlutterActivity.withNewEngine()
+                .initialRoute("/outgoing")
+                .build(this);
+        PendingIntent answerCallPendingIntent = PendingIntent.getActivity(this, 1, answerCallIntent, PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+
+        Intent incomingCall  = FlutterActivity.withNewEngine()
                 .initialRoute("/incoming")
                 .build(this);
-        PendingIntent answerCallPendingIntent = PendingIntent.getBroadcast(this, 1, answerCallIntent, PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
 
-        Intent incomingCall  = new Intent(this,IncomingCallActivity.class);
         PendingIntent incomingPendingIntent = PendingIntent.getActivity(this,2,incomingCall,PendingIntent.FLAG_IMMUTABLE);
-
-
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
                 .setFullScreenIntent( // Make it a full-screen intent (requires the USE_FULL_SCREEN_INTENT permission)
                         incomingPendingIntent,
