@@ -1,0 +1,19 @@
+package main
+
+var event = `
+Event: Newchannel
+Privilege: call,all
+Channel: YSGSM/1-1
+ChannelState: 1
+ChannelStateDesc: Rsrvd
+CallerIDNum: +989100261726
+CallerIDName: +989100261726
+AccountCode:
+Exten: s
+Context: from-gsm1
+Uniqueid: 1743662302.0
+`
+
+func main() {
+
+}
