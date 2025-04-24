@@ -1,11 +1,14 @@
+import 'package:linphone/src/callPage/incoming.dart';
 import 'package:linphone/src/callPage/outgoing.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/contactsPage/contacts.dart';
 import 'package:linphone/src/callPage/call_record_page.dart';
+import 'package:linphone/src/messagePage/chat_page.dart';
 import 'package:linphone/src/messagePage/message_page.dart';
 import 'package:linphone/src/router.dart';
 import 'package:linphone/src/settingsPage/settings.dart';
 import 'package:linphone/src/theme_provider.dart';
+import 'package:linphone/src/util/sms.dart';
 import 'package:linphone/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart' as Logging;
@@ -19,6 +22,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Logging.Logger.level = Logging.Level.debug;
   await DbService.initdb();
+
   // await oVpnConnection();
   runApp(
     MultiProvider(
@@ -37,11 +41,12 @@ class MyApp extends StatelessWidget {
     routes = {
       '/': ([Object? arguments]) => HistoryPage(),
       '/messages': ([Object? arguments]) => MessagePage(),
+      '/chat': ([Object? arguments]) => ChatPage(arguments as int),
       '/contacts': ([Object? arguments]) => ContactPage(),
       '/settings': ([Object? arguments]) => SettingsPage(),
       '/register': ([Object? arguments]) => RegisterWidget(),
-      "/outgoing": ([Object? arguments]) => Outgoing(),
-      "/incoming": ([Object? arguments]) => Outgoing(),
+      "/outgoing": ([Object? arguments]) => Outgoing(arguments as String),
+      "/incoming": ([Object? arguments]) => Incoming(),
       '/about': ([Object? arguments]) => AboutWidget(),
     };
   }
@@ -80,13 +85,14 @@ class MyApp extends StatelessWidget {
         title: 'Flutter Demo',
         theme: targetTheme,
         initialRoute: '/',
+        themeAnimationDuration: Duration(milliseconds: 200),
         onGenerateRoute: _onGenerateRoute,
       ),
     );
   }
 }
 
-// 9192233484
+//
 //
 // Future<void> oVpnConnection() async {
 //   WidgetsFlutterBinding.ensureInitialized();

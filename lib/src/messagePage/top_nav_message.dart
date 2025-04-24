@@ -6,8 +6,8 @@ class TopNavMessage extends StatelessWidget {
     this._tabController,
     this._activeIndex,
     this.all,
-    this.pinned,
     this.unread,
+    this.pinned,
   );
   late final TabController _tabController;
   late final int _activeIndex;

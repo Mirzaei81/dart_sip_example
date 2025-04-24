@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 class ChatBubble extends ShapeBorder {
   final Color color;
   final Alignment alignment;
+  final double pos;
 
   ChatBubble({
     required this.color,
     required this.alignment,
+    required this.pos,
   });
 
   final BorderSide _side = BorderSide.none;
@@ -34,13 +36,10 @@ class ChatBubble extends ShapeBorder {
     final double triangleH = 5;
     final double triangleW = 15.0;
     final double width = rect.width;
-    final double hWidth = width * 0.5;
+    final double hWidth = width * pos;
     final Path trianglePath = Path();
     trianglePath.addRRect(RRect.fromRectAndRadius(
         rect.shift(Offset(0, triangleH)), Radius.circular(20)));
-    // Bezier Tail
-    final startPoint =
-        Offset(rect.right, rect.center.dy); // Right middle of RRect
 
     if (alignment == Alignment.topRight) {
       trianglePath

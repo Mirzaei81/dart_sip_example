@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:intl/intl.dart';
 import 'package:linphone/src/classes/accounts.dart';
 import 'package:linphone/src/classes/call_record.dart';
 import 'package:linphone/src/classes/contact.dart';
@@ -21,7 +22,7 @@ class DbService {
   DbService._internal();
 
   @override
-  String toString() {
+  static String sToString() {
     return "DB:${_db.path}";
   }
 
@@ -29,12 +30,48 @@ class DbService {
     await _db.close();
   }
 
+  static Future<void> pinMessage(int id) async {
+    try {
+      await _db.update("messages", {"isPinned": true},
+          where: "id = ?",
+          whereArgs: [id],
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  static Future<void> pinMessages(int id) async {
+    try {
+      await _db.update("messages", {"isPinned": true},
+          where: "peerId = ?",
+          whereArgs: [id],
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  static Future<void> seenMessage(int id) async {
+    print("updating message with id : $id");
+    try {
+      await _db.update("messages", {"read": true},
+          where: "peerId = ?",
+          whereArgs: [id],
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
   static Future<void> initdb() async {
     WidgetsFlutterBinding.ensureInitialized();
-    final databasePath = await getDatabasesPath();
-    final path = "$databasePath/linotik.db";
-    _db = await openDatabase(path,
-        version: 1, onCreate: _createDatabase, onConfigure: _onConfigure);
+    if (Platform.isAndroid || Platform.isIOS) {
+      final databasePath = await getDatabasesPath();
+      final path = "$databasePath/linotik.db";
+      _db = await openDatabase(path,
+          version: 1, onCreate: _createDatabase, onConfigure: _onConfigure);
+    }
   }
 
   static Future<List<Accounts>> listAcc() async {
@@ -50,35 +87,61 @@ class DbService {
     return _db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table';");
   }
 
-  static Future<Contact?> getContact(String phone) async {
-    List<Map> map =
-        await _db.query("contacts", where: "phone_number", whereArgs: [phone]);
+  static Future<Contact?> getContactById(int id) async {
+    List<Map> map = await _db.query("person", where: "id= ?", whereArgs: [id]);
     if (map.isEmpty) {
       return null;
     }
     Contact c = Contact(
+        id: map[0]["id"] ?? 0,
         name: map[0]["name"] ?? "",
+        date: DateTime.fromMillisecondsSinceEpoch(
+            map[0]["data"] ?? DateTime.now().millisecondsSinceEpoch),
+        phoneNumber: map[0]["phone_number"],
+        imgPath: map[0]["img_path"] ?? "");
+    return c;
+  }
+
+  static Future<Contact?> getContact(String phone) async {
+    List<Map> map = await _db
+        .query("person", where: "phone_number = ?", whereArgs: [phone]);
+    if (map.isEmpty) {
+      return null;
+    }
+    Contact c = Contact(
+        id: map[0]["id"] ?? 0,
+        name: map[0]["name"] ?? "",
+        date: DateTime.fromMillisecondsSinceEpoch(map[0]["data"]),
         phoneNumber: map[0]["phone_number"] ?? phone,
         imgPath: map[0]["img_path"] ?? "");
     return c;
   }
 
   static Future<List<CallRecord>> listRecords() async {
-    final List<Map<String, Object?>> recordMaps =
-        await _db.query('call_records');
+    final List<Map<String, Object?>> recordMaps = await _db.rawQuery('''
+      select call_records.id,person.name,person.img_path,person.phone_number,call_records.date,call_records.incoming,call_records.record_path,call_records.missed
+      from call_records 
+      join person  on call_records.personId = person.id 
+      ''');
+    List<CallRecord> recordList = List<CallRecord>.empty(growable: true);
+    for (var record in recordMaps) {
+      recordList.add(CallRecord(
+        id: record["id"] as int,
+        name: record["name"] as String,
+        avatarPath: (record["img_path"] ?? "") as String,
+        date: DateTime.parse(record["date"] as String),
+        incoming: record["incoming"] == 1,
+        missed: record["missed"] == 1,
+        calleNumber: record["phone_number"] as String,
+        recordPath: record["record_path"] as String,
+      ));
+    }
+    ;
+    return recordList;
+  }
 
-    return [
-      for (var record in recordMaps)
-        CallRecord(
-          name: record["name"] as String,
-          avatarPath: record["avatarPath"] as String,
-          date: record["date"] as DateTime,
-          incoming: record["incoming"] as bool,
-          missed: record["missed"] as bool,
-          calleNumber: record["calleNumber"] as String,
-          recordPath: record["recordPath"] as String,
-        )
-    ];
+  static Future<void> removeCallRecord(int id) async {
+    await _db.delete("call_records", where: "id = ?", whereArgs: [id]);
   }
 
   static Future<int> insertRecords(CallRecord values) async {
@@ -89,12 +152,14 @@ class DbService {
   }
 
   static Future<List<Contact>> listContacts() async {
-    final List<Map<String, Object?>> contactsMaps = await _db.query("contacts");
+    final List<Map<String, Object?>> contactsMaps = await _db.query("person");
     List<Contact> contacts = [
       for (var record in contactsMaps)
         Contact(
+            id: record["id"] as int,
             name: record["name"] as String,
             phoneNumber: record["phone_number"] as String,
+            date: (DateTime.fromMillisecondsSinceEpoch(record["date"] as int)),
             imgPath: record["img_path"] as String)
     ];
 
@@ -102,42 +167,90 @@ class DbService {
   }
 
   static Future<int> insertContacts(Contact values) async {
-    int id = await _db.insert('contacts', values.toMap(),
+    int id = await _db.insert('person', values.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
 
     return id;
   }
 
-  static Future<(List<MessageDto>, List<MessageDto>, List<MessageDto>)>
-      listMessages() async {
+  static Future<void> removeMessage(int id) async {
+    await _db.delete('messages', where: "id = ?", whereArgs: [id]);
+  }
+
+  static Future<void> removeMessages(int id) async {
+    await _db.delete('messages', where: "peerId= ?", whereArgs: [id]);
+  }
+
+  static Future<List<Message>> getMessagefromPeer(int id) async {
     final List<Map<String, Object?>> messagesMaps =
         await _db.rawQuery("""SELECT *
-      FROM contacts
+      FROM person
       JOIN messages
-      ON contacts.id = messages.peerId;
+      ON person.id = messages.peerId
+      where person.id = ?;
+    """, [id]);
+    return [
+      for (var msg in messagesMaps)
+        Message(
+          recvId: (msg["recvId"] ?? 0) as int,
+          content: (msg["content"] ?? '') as String,
+          isMine: (msg["isMine"] ?? 0) == 1,
+          dateSend: DateTime.fromMillisecondsSinceEpoch(msg["dateSend"] as int),
+          isPinned: (msg["isPinned"] as int? ?? 0) == 1,
+          read: (msg["read"] as int? ?? 0) == 1,
+        )
+    ];
+  }
+
+  static Future<(List<MessageDto>, int, int, int)> listMessages() async {
+    final List<Map<String, Object?>> messagesMaps = await _db.rawQuery("""
+          WITH summary AS (
+              SELECT p.id, 
+                    p.peerId, 
+                    p.content, 
+                    p.read,
+                    p.isPinned,
+                    p.dateSend,
+                    ROW_NUMBER() OVER(PARTITION BY p.peerId 
+                                          ORDER BY p.dateSend DESC) AS rank
+                FROM messages p)
+          SELECT *
+            FROM summary JOIN person on summary.peerId = person.id
+          WHERE rank = 1
     """);
+    List<Map<String, Object?>> stats = await _db.rawQuery("""
+select 
+      COUNT(*) AS total,
+      COUNT(*) Filter(WHERE messages.read = 0 ) AS unread,
+      COUNT(*) Filter(WHERE messages.isPinned = 1) AS isPinned
+  from messages""", []);
     List<MessageDto> allMessages = [];
-    List<MessageDto> readMessages = [];
-    List<MessageDto> pinnedMessages = [];
     for (var record in messagesMaps) {
       bool isPinned = (record["isPinned"] as int) == 1;
       bool isRead = (record["read"] as int) == 1;
       MessageDto msg = MessageDto(
           peer: Contact(
+            id: record["id"] as int,
             name: record["name"] as String,
             phoneNumber: record["phone_number"] as String,
             imgPath: record["img_path"] as String,
+            date: (DateTime.fromMillisecondsSinceEpoch(
+              (record["date"] ?? DateTime.now().microsecondsSinceEpoch) as int,
+            )),
           ),
           content: record["content"] as String,
-          dateSend: DateTime.parse(record["dateSend"] as String),
+          dateSend:
+              DateTime.fromMillisecondsSinceEpoch(record["dateSend"] as int),
           isPinned: isPinned,
           read: isRead);
       allMessages.add(msg);
-      isPinned ? pinnedMessages.add(msg) : null;
-      isRead ? null : readMessages.add(msg);
     }
-
-    return (allMessages, readMessages, pinnedMessages);
+    return (
+      allMessages,
+      stats[0]["total"] as int,
+      stats[0]["unread"] as int,
+      stats[0]["isPinned"] as int,
+    );
   }
 
   static Future<int> insertMessages(Message values) async {
@@ -150,32 +263,10 @@ class DbService {
     await db.execute('PRAGMA foreign_keys = ON; PRAGMA integrity_check = ON;');
   }
 
-  static Future<Message> parseSmsString(String smsData) async {
-    final lines = smsData.split('\n');
-    final map = <String, String>{};
-
-    for (final line in lines) {
-      final parts = line.split(': ');
-      if (parts.length == 2) {
-        map[parts[0].trim()] = parts[1].trim();
-      }
-    }
-    Message msg = Message(
-      content: map['Content'] ?? '',
-      isPinned: false,
-      read: false,
-      dateSend: DateTime.parse(map['Recvtime'] ?? DateTime.now().toString()),
-      recvId: await _getConvId(map['Sender'] ?? ''),
-    );
-    insertMessages(msg);
-
-    return msg;
-  }
-
   static Future<int> _getConvId(String senderPhone) async {
     const getConvIdSql = '''
     SELECT c.id 
-    FROM contacts c
+    FROM person c
     WHERE c.phone_number = ?
     LIMIT 1;
   ''';
@@ -193,24 +284,35 @@ class DbService {
 
       for (var row in await targetdb
           .rawQuery("select sender, content, recvtime from smsrecv")) {
-        var contact = await _db.query("contacts",
+        var contact = await _db.query("person",
             distinct: true,
             where: "phone_number = ?",
             whereArgs: [row["sender"]]);
         int contactId = 0;
         if (contact.isEmpty) {
-          contactId = await _db.rawInsert('''
-        INSERT INTO contacts (name, img_path, phone_number)
-        VALUES (?, ?, ?)
-      ''', [row['sender'], '', row['sender']]);
+          contactId = await _db.insert(
+              "person",
+              {
+                "name": row['sender'],
+                "img_path": "",
+                "phone_number": row['sender'],
+                "date": DateTime.parse(row["recvtime"] as String)
+                    .millisecondsSinceEpoch,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace);
         } else {
           contactId = contact[0]["id"] as int;
         }
-        var msgId = await _db.rawInsert('''
-          INSERT INTO messages (content, dateSend, peerId , isPinned)
-          VALUES (?, ?, ?, ?)
-        ''', [row['content'], row['recvtime'], contactId, '0']);
-        print(msgId);
+        await _db.rawInsert('''
+          INSERT INTO messages (content, dateSend, peerId , isPinned,isMine)
+          VALUES (?, ?, ?, ?, ?)
+        ''', [
+          row['content'],
+          DateTime.parse(row['recvtime'] as String).millisecondsSinceEpoch,
+          contactId,
+          '0',
+          '0'
+        ]);
       }
       await targetdb.close();
     }
@@ -223,11 +325,12 @@ class DbService {
     personId VARCHAR(255) NOT NULL,
     date DATETIME NOT NULL,
     incoming BOOLEAN NOT NULL,
-    caller_number VARCHAR(20) NOT NULL,
-    record_path VARCHAR(255) NOT NULL
+    missed BOOLEAN NOT NULL,
+    record_path VARCHAR(255) NOT NULL,
     FOREIGN KEY(personId) REFERENCES person(id)
   );
   ''');
+
     await database.execute('''
   CREATE TABLE IF NOT EXISTS accounts(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,20 +342,22 @@ class DbService {
   CREATE TABLE IF NOT EXISTS person (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR(255) NOT NULL,
-    img_path VARCHAR(255) NOT NULL,
-    phone_number VARCHAR(20) NOT NULL
+    img_path VARCHAR(255),
+    date int NOT NULL,
+    phone_number VARCHAR(20)  NOT NULL UNIQUE
   );
   ''');
     return await database.execute('''
-  CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    content TEXT NOT NULL,
-    dateSend DATETIME NOT NULL, 
-    isPinned INTEGER Not NULL DEFAULT 0,
-    read INTEGER Not NULL DEFAULT 0,
-    peerId int NOT NULL,
-    FOREIGN KEY(peerId) REFERENCES contacts(id)
-  );
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      dateSend DATETIME NOT NULL, 
+      isPinned INTEGER Not NULL DEFAULT 0,
+      read INTEGER Not NULL DEFAULT 0,
+      peerId int NOT NULL,
+      isMine int Not NULL DEFAULT 0,
+      FOREIGN KEY(peerId) REFERENCES person(id)
+    );
   ''');
   }
 }

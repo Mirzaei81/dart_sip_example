@@ -51,7 +51,7 @@ public class SendMessage extends CoroutineWorker {
         String host =input.getString("host");
         String personId =input.getString("personId");
         int port = 5038;
-        try (Socket socket = new Socket(host, port)) { // Connect to port 5038
+        try (Socket socket = new Socket(host, port)) {
             OutputStream output = socket.getOutputStream();
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
             BufferedReader reader = new BufferedReader(
@@ -76,6 +76,7 @@ public class SendMessage extends CoroutineWorker {
             cv.put("dateSend",date);
             cv.put("isPinned",false);
             cv.put("read",true);
+            cv.put("isMine",false);
             cv.put("peerId",personId);
             long id  = db.insert("messages",null,cv);
             String sendCommand = String.format(Locale.US,"Action: smscommand\r\ncommand: gsm send sms 2 %s \"%s\" %d\r\n\r\n",number,encodedMessage,(int)id);

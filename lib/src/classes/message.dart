@@ -1,23 +1,28 @@
 import 'package:linphone/src/classes/contact.dart';
 
 class Message {
+  int id = 0;
   final String content;
   final DateTime dateSend;
   final int recvId;
   final bool read;
+  final bool isMine;
   final bool isPinned;
   Map<String, Object?> toMap() {
     return {
       "content": content,
-      "dateSend": dateSend,
+      "dateSend": dateSend.millisecondsSinceEpoch,
       "peerId": recvId,
-      "isPinned": isPinned,
-      "read": read
+      "isPinned": isPinned ? 1 : 0,
+      "read": read ? 1 : 0,
+      "isMine": isMine ? 1 : 0
     };
   }
 
   Message(
-      {required this.recvId,
+      {this.id = 0,
+      required this.isMine,
+      required this.recvId,
       required this.content,
       required this.dateSend,
       required this.isPinned,
@@ -26,10 +31,10 @@ class Message {
 
 class MessageDto {
   final Contact peer;
-  final String content;
+  String content;
   final DateTime dateSend;
-  final bool isPinned;
-  final bool read;
+  bool isPinned;
+  bool read;
   MessageDto(
       {required this.content,
       required this.read,

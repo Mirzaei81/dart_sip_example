@@ -1,18 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter_pjsip/flutter_pjsip.dart';
 import 'package:linphone/src/classes/accounts.dart';
 import 'package:linphone/src/classes/db.dart';
-import 'package:linphone/src/classes/contact.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/contact.dart' as flutter_contact;
-import 'package:flutter_contacts/flutter_contacts.dart' as flutter_contacts;
 import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/widgets/alert.dart';
 import 'package:linphone/src/widgets/loading_overlay.dart';
 import 'package:loader_overlay/loader_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 
 class RegisterWidget extends StatefulWidget {
   RegisterWidget();
@@ -44,27 +38,6 @@ class _MyRegisterWidget extends State<RegisterWidget> {
     });
   }
 
-  void importContacts() async {
-    if (await flutter_contacts.FlutterContacts.requestPermission()) {
-      List<flutter_contact.Contact> contacts =
-          await flutter_contacts.FlutterContacts.getContacts();
-
-      for (var contact in contacts) {
-        File? f;
-        var photo = contact.photo;
-        if (photo != null) {
-          f = await File(
-                  "${contact.displayName}-${DateTime.now().toString()}.png")
-              .writeAsBytes(photo);
-        }
-        DbService.insertContacts(Contact(
-            name: contact.displayName,
-            phoneNumber: contact.phones[0].number,
-            imgPath: f != null ? f.path : ""));
-      }
-    }
-  }
-
   @override
   void dispose() {
     _passwordController.dispose();
@@ -81,19 +54,38 @@ class _MyRegisterWidget extends State<RegisterWidget> {
 
   void _loadSettings() async {
     List<Accounts> accounts = await DbService.listAcc();
-    _sipUriController.text = accounts[0].uri;
-    _passwordController.text = accounts[0].password;
-    _authorizationUserController.text = accounts[0].username;
+    if (accounts.isNotEmpty) {
+      _sipUriController.text = accounts[0].uri;
+      _passwordController.text = accounts[0].password;
+      _authorizationUserController.text = accounts[0].username;
+    }
   }
 
   Future<void> _saveSettings() async {
     await _preferences.setString(
         'display_name', _authorizationUserController.text);
-    await DbService.insertAcc(Accounts(
+    var acc = Accounts(
         id: 0,
-        uri: _sipUriController.text,
-        username: _authorizationUserController.text,
-        password: _passwordController.text));
+        uri: _sipUriController.text.trim(),
+        username: _authorizationUserController.text.trim(),
+        password: _passwordController.text.trim());
+    await DbService.insertAcc(acc);
+    try {
+      await FlutterPjsip.instance.pjsipDeinit();
+      await FlutterPjsip.instance.pjsipInit(DbService.dbPath);
+    } catch (err) {
+      print(err);
+    }
+    var state = await FlutterPjsip.instance.pjsipLogin(
+        username: acc.username,
+        password: acc.password,
+        ip: acc.uri,
+        port: "5060");
+    FlutterPjsip.instance.onSipStateChanged.listen((map) {
+      print(map);
+    });
+    registrationStateChanged(state);
+
     return;
   }
 
@@ -111,22 +103,8 @@ class _MyRegisterWidget extends State<RegisterWidget> {
     context.loaderOverlay.show(
         widgetBuilder: (progress) =>
             ConnectingOverlay(progress ?? "", "Connecting..."));
-    _saveSettings().then((_) {
-      pjsip.pjsipInit(DbService.dbPath).then((v) => {
-            if (!v && kDebugMode)
-              {
-                alert(context, "Internal Error",
-                    "Somthing went wrong while trying to initlize sdk")
-              }
-          });
-      pjsip
-          .pjsipLogin(
-              username: _authorizationUserController.text,
-              password: _passwordController.text,
-              ip: _sipUriController.text,
-              port: "5060")
-          .then(registrationStateChanged);
-    });
+
+    _saveSettings().then((_) {});
   }
 
   @override
@@ -243,7 +221,6 @@ class _MyRegisterWidget extends State<RegisterWidget> {
                   SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      print("registering");
                       _register(context);
                     },
                     child: Text(

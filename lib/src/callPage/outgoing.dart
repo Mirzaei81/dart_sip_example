@@ -1,27 +1,27 @@
-import 'dart:math' as math;
-
 import 'package:flutter_pjsip/flutter_pjsip.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/widgets/funcPad.dart';
 import 'package:linphone/src/widgets/numpad.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibration/vibration.dart';
 
 class Outgoing extends StatefulWidget {
-  Outgoing();
+  final String peerId;
+  Outgoing(this.peerId);
 
   @override
-  State<StatefulWidget> createState() => OutgoinCallWidget();
+  State<StatefulWidget> createState() => OutgoinCallWidget(peerId);
 }
 
 class OutgoinCallWidget extends State<Outgoing> {
-  OutgoinCallWidget();
+  OutgoinCallWidget(this.peerNumber);
   bool showNumpad = false;
   late final String serverAddress;
+  final String peerNumber;
+  late Contact calle;
 
   final FlutterPjsip pjsip = FlutterPjsip.instance;
 
@@ -30,9 +30,8 @@ class OutgoinCallWidget extends State<Outgoing> {
   }
 
   Future<void> _endCall() async {
-    bool refused = await pjsip.pjsipRefuse();
+    await pjsip.pjsipRefuse();
     await Navigator.pushNamed(context, "/");
-    return null;
   }
 
   Future<void> _bluetooth() async {
@@ -59,12 +58,12 @@ class OutgoinCallWidget extends State<Outgoing> {
   }
 
   void _loadSettings() async {
-    SharedPreferencesWithCache _preferences =
-        await SharedPreferencesWithCache.create(
-            cacheOptions: const SharedPreferencesWithCacheOptions());
-    setState(() {
-      serverAddress = _preferences.getString('sip_uri') ?? '192.168.10.110';
-    });
+    var accounts = await DbService.listAcc();
+    if (accounts.isNotEmpty) {
+      setState(() {
+        serverAddress = accounts[0].uri;
+      });
+    }
   }
 
   Future<Contact?> getContact(String number) async {
@@ -74,6 +73,16 @@ class OutgoinCallWidget extends State<Outgoing> {
   @override
   void initState() {
     super.initState();
+    Vibration.cancel();
+    DbService.getContact(peerNumber).then((c) {
+      if (c != null) {
+        setState(() {
+          calle = c;
+        });
+      }
+    });
+    FlutterPjsip.instance.pjsipReceive();
+
     _loadSettings();
   }
 

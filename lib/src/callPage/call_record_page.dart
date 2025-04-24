@@ -1,26 +1,36 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_pjsip/flutter_pjsip.dart';
 import 'package:ftpconnect/ftpConnect.dart';
 import 'package:http/http.dart' as http;
 import 'package:linphone/src/callPage/dial_page.dart';
 import 'package:linphone/src/callPage/call_record_list.dart';
 import 'package:linphone/src/callPage/top_nav_calls.dart';
-import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/call_record.dart';
+import 'package:linphone/src/classes/contact.dart' as DbContact;
 import 'package:linphone/src/classes/db.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:linphone/src/util/sms.dart';
+import 'package:linphone/src/widgets/Actions.dart';
 import 'package:linphone/src/widgets/alert.dart';
+import 'package:linphone/src/widgets/bottomTabNavigator.dart';
+import 'package:linphone/src/widgets/tabIndicator.dart';
 import 'package:loader_overlay/loader_overlay.dart';
+import 'package:path/path.dart' as pathLib;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HistoryPage extends StatefulWidget {
   HistoryPage();
+
   @override
   State<HistoryPage> createState() => _HistoryWidget();
 }
@@ -32,32 +42,69 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
       SharedPreferencesWithCache.create(
           cacheOptions: const SharedPreferencesWithCacheOptions());
 
-  final Map<int, String> bottomTabs = {
-    0: "/",
-    1: "/messages",
-    2: "/contacts",
-    3: "/settings",
-  };
   String _name = "";
   bool fabActive = false;
   late final TabController _tabController;
-  late final TabController _bottomTabController;
   late int _activeIndex = 0;
-  late Future<List<CallRecord>> callRecords = Future(List.empty);
-  late final Future<List<Contact>> contacts;
+  List<CallRecord> TOTcallRecords = List<CallRecord>.empty();
+  List<CallRecord> callRecords = List.empty();
+  List<DbContact.Contact> contacts = List<DbContact.Contact>.empty();
   bool loading = false;
 
-  Future<void> _loadName() async {
+  bool showNotifs = false;
+
+  bool showSearchbar = true;
+  final TextEditingController _searchbarTextConteroller =
+      TextEditingController();
+
+  int missedCount = 0;
+
+  Future<void> _initContacts() async {
+    final String dirPath = (await getApplicationDocumentsDirectory()).path;
+    final perf = await _prefs;
+    bool getC = perf.getBool("contacat") ?? false;
+    if (!getC) {
+      var contacts = await FlutterContacts.getContacts(
+          withPhoto: true,
+          withGroups: true,
+          withAccounts: true,
+          withProperties: true);
+      for (var c in contacts) {
+        if (c.phones.isEmpty) continue;
+        var path = "";
+        if (c.photo != null && c.photo!.isNotEmpty) {
+          path = dirPath + pathLib.separator + c.id.toString();
+          var f = File(path);
+          f.writeAsString(base64Encode(c.photo as List<int>));
+        }
+        try {
+          DbService.insertContacts(DbContact.Contact(
+              name: c.displayName,
+              phoneNumber: c.phones[0].normalizedNumber.replaceAll(" ", ""),
+              imgPath: path,
+              date: DateTime.now()));
+        } catch (e) {
+          print(e.toString());
+        }
+      }
+    }
+    await perf.setBool("contacat", true);
+    setState(() {
+      _name = perf.getString("display_name") ?? "";
+    });
+  }
+
+  Future<void> _initDisplayName() async {
     final perf = await _prefs;
     setState(() {
       _name = perf.getString("display_name") ?? "";
     });
   }
 
-  Future<void> loadDb() async {
-    bool fetched = (await _prefs).getBool("fetched") ?? false;
-    if (fetched) {
-      String address = (await _prefs).getString("sip_uri") ?? '192.168.10.110';
+  Future<void> _initDb(SharedPreferencesWithCache p, String address) async {
+    bool fetched = p.getBool("fetched") ?? false;
+    if (!fetched) {
+      context.loaderOverlay.show();
       FTPConnect ftpClient =
           FTPConnect(address, user: 'root', pass: 'ys123456', timeout: 10);
       try {
@@ -75,14 +122,18 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
             setState(() {
               loading = false;
             });
+            p.setBool("fetched", true);
+            context.loaderOverlay.hide();
+            await ftpClient.disconnect();
+          } else {
+            print(success);
+            alert(context, "Connection Failure", "Failed to connect to server");
           }
-          await ftpClient.disconnect();
-          context.loaderOverlay.hide();
-          (await _prefs).setBool("fetched", true);
         } else {
           alert(context, "Connection Failure", "Failed to connect to server");
         }
       } catch (e) {
+        print(e.toString());
         setState(() {
           loading = false;
         });
@@ -91,43 +142,63 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
       }
     }
     context.loaderOverlay.hide();
-    await _loadName();
-    callRecords = DbService.listRecords(); // future builder will resolve this
-    contacts = DbService.listContacts();
+    await _initDisplayName();
+  }
+
+  void initHandler() async {
+    var accounts = await DbService.listAcc();
+    if (accounts.isEmpty) {
+      Navigator.pushNamed(context, "/register");
+      return;
+    }
+    var statuses = await [
+      Permission.storage,
+      Permission.notification,
+      Permission.contacts
+    ].request();
+
+    FlutterPjsip instence = FlutterPjsip.instance;
+    var p = await _prefs;
+    await instence.pjsipInit(DbService.dbPath);
+    if (statuses.values.contains(PermissionStatus.denied)) {
+      openAppSettings();
+      return;
+    } else if (statuses.values.contains(PermissionStatus.permanentlyDenied)) {
+      openAppSettings();
+      return;
+    } else {
+      await _initDb(p, accounts[0].uri.trim());
+      await _initContacts();
+    }
+    await SmsHandler.connect(context);
+    var token = p.getString("token");
+    if (token == null) {
+      await registerToken(accounts[0].uri.trim(), context, p);
+    }
+
+    var fetchedContacts = await DbService.listContacts();
+    var fetchedTOTcallRecords = await DbService.listRecords();
+    setState(() {
+      contacts = fetchedContacts;
+      TOTcallRecords = fetchedTOTcallRecords;
+      callRecords = fetchedTOTcallRecords;
+      missedCount = callRecords.where((cr) => cr.missed).length;
+    });
   }
 
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Permission.storage.request().then(print);
-      Permission.notification.request().then((PermissionStatus perm) {
-        print(perm.toString());
-      });
-      DbService.listAcc().then((accounts) {
-        accounts.isEmpty
-            ? Navigator.pushNamed(context, "/register")
-            : {
-                loadDb(),
-                _prefs.then((p) {
-                  var token = p.getString("token");
-                  if (token == null) {
-                    registerToken(accounts[0].uri.trim(), context, p);
-                  }
-                })
-              };
-      });
+      initHandler();
     });
 
     _tabController = TabController(
         animationDuration: Duration(microseconds: 30), length: 4, vsync: this);
 
-    _bottomTabController = TabController(
-        animationDuration: Duration(microseconds: 30), length: 4, vsync: this);
-    _bottomTabController.addListener(() {
-      Navigator.pushNamed(
-          context, bottomTabs[_bottomTabController.index] ?? "/");
+    _searchbarTextConteroller.addListener(() {
+      setState(() => callRecords = TOTcallRecords.where(
+          (c) => c.name.contains(_searchbarTextConteroller.text)).toList());
     });
-
     _tabController.animation!.addListener(() {
       setState(() {
         loading = true;
@@ -140,7 +211,6 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _tabController.dispose();
-    _bottomTabController.dispose();
     super.dispose();
   }
 
@@ -160,83 +230,10 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     const String userAsset = "assets/images/user.svg";
-    const String bellAsset = "assets/images/Bellsvg.svg";
-    const String searchAsset = "assets/images/search.svg";
     const String keypadAsset = "assets/images/keypad.svg";
 
-    const String callFillAsset = "assets/images/call_fill.svg";
-    const String bubbleFillAsset = "assets/images/bubble_fill.svg";
-    const String contactFillAsset = "assets/images/contact_fill.svg";
-    const String settingsFillAsset = "assets/images/settings_fill.svg";
-
-    const String callOutlineAsset = "assets/images/call_outline.svg";
-    const String bubbleOutlineAsset = "assets/images/bubble_outline.svg";
-    const String contactOutlineAsset = "assets/images/contact_outline.svg";
-    const String settingsOutlineAsset = "assets/images/settings_outline.svg";
-
     return Scaffold(
-      bottomNavigationBar: Container(
-        color: Color(0xf7f7f7f7),
-        child: Container(
-          width: 343,
-          height: 64,
-          clipBehavior: Clip.hardEdge,
-          margin: EdgeInsets.only(bottom: 6, right: 16, left: 16),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(18),
-                  spreadRadius: 0,
-                  blurRadius: 7,
-                  offset: Offset(0, 7),
-                ),
-              ],
-              borderRadius: BorderRadius.circular(24)),
-          child: TabBar(
-              indicator: BoxDecoration(
-                borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(8),
-                    bottomRight: Radius.circular(8)),
-                border: Border(
-                    top: BorderSide(
-                  color: Color.fromARGB(255, 27, 114, 254),
-                  width: 3.0,
-                )),
-              ),
-              controller: _bottomTabController,
-              tabs: [
-                Tab(
-                  icon: SvgPicture.asset(
-                    _bottomTabController.index == 0
-                        ? callFillAsset
-                        : callOutlineAsset,
-                  ),
-                  text: 'call',
-                ),
-                Tab(
-                  icon: SvgPicture.asset(
-                    _bottomTabController.index == 1
-                        ? bubbleFillAsset
-                        : bubbleOutlineAsset,
-                  ),
-                  text: "Message",
-                ),
-                Tab(
-                  icon: SvgPicture.asset(_bottomTabController.index == 2
-                      ? contactFillAsset
-                      : contactOutlineAsset),
-                  text: "Contacts",
-                ),
-                Tab(
-                  icon: SvgPicture.asset(_bottomTabController.index == 3
-                      ? settingsFillAsset
-                      : settingsOutlineAsset),
-                  text: "Settings",
-                )
-              ]),
-        ),
-      ),
+      bottomNavigationBar: BottomNavBar(0),
       backgroundColor: Color.fromARGB(255, 27, 114, 254),
       appBar: AppBar(
         actionsPadding: EdgeInsets.all(20),
@@ -267,108 +264,86 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
           );
         }),
         actions: [
-          Row(
-            children: [
-              SvgPicture.asset(
-                bellAsset,
-                width: 16,
-                height: 16,
-                fit: BoxFit.contain,
-              ),
-              SizedBox(
-                width: 10,
-              ),
-              SvgPicture.asset(
-                searchAsset,
-                width: 16,
-                height: 16,
-                fit: BoxFit.contain,
-              )
-            ],
+          NavActions(
+            missedCount: missedCount,
+            searchbarTextConteroller: _searchbarTextConteroller,
+            onTap: (value) =>
+                Navigator.pushNamed(context, "/outgoing", arguments: value),
+            messages: callRecords
+                .where((c) => c.missed)
+                .map((c) => {c.calleNumber: "Missed call : ${c.calleNumber}"})
+                .toList(),
           )
         ],
       ),
-      body: FutureBuilder<List<CallRecord>>(
-          future: callRecords,
-          builder: (context, snapshot) =>
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                snapshot.hasData
-                    ? Padding(
-                        padding: EdgeInsets.only(left: 16, top: 6, bottom: 28),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("You Have",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w400,
-                                    fontSize: 8)),
-                            Text(
-                                "${snapshot.data!.where((data) => data.missed).length.toString()} Missed Calls",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    decorationColor: Colors.white,
-                                    decoration: TextDecoration.underline,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500))
-                          ],
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Color(0xf7f7f7f7),
-                      borderRadius: BorderRadiusDirectional.only(
-                          topEnd: Radius.circular(24),
-                          topStart: Radius.circular(24)),
-                    ),
-                    child: PopScope<Object?>(
-                      canPop: false,
-                      onPopInvokedWithResult: onPopInvoke,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 20, right: 20),
-                            child: !fabActive
-                                ? TopNavigation(
-                                    tabController: _tabController,
-                                    activeIndex: _activeIndex,
-                                    counts: countCalls(snapshot.data),
-                                  )
-                                : Padding(
-                                    padding: const EdgeInsets.only(top: 16.0),
-                                    child: Text(
-                                      "Results",
-                                      textAlign: TextAlign.left,
-                                      style: TextStyle(
-                                          color:
-                                              Color.fromARGB(255, 96, 96, 96),
-                                          fontSize: 8),
-                                    ),
-                                  ),
+      body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: EdgeInsets.only(left: 16, top: 6, bottom: 28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("You Have",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 8)),
+              Text(
+                  "${callRecords.where((data) => data.missed).length.toString()} Missed Calls",
+                  style: TextStyle(
+                      color: Colors.white,
+                      decorationColor: Colors.white,
+                      decoration: TextDecoration.underline,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500))
+            ],
+          ),
+        ),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color(0xf7f7f7f7),
+              borderRadius: BorderRadiusDirectional.only(
+                  topEnd: Radius.circular(24), topStart: Radius.circular(24)),
+            ),
+            child: PopScope<Object?>(
+              canPop: false,
+              onPopInvokedWithResult: onPopInvoke,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 20, right: 20),
+                    child: !fabActive
+                        ? TopNavigation(
+                            tabController: _tabController,
+                            activeIndex: _activeIndex,
+                            counts: countCalls(callRecords),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.only(top: 16.0),
+                            child: Text(
+                              "Results",
+                              textAlign: TextAlign.left,
+                              style: TextStyle(
+                                  color: Color.fromARGB(255, 96, 96, 96),
+                                  fontSize: 8),
+                            ),
                           ),
-                          Expanded(
-                            child: fabActive
-                                ? FutureBuilder<List<Contact>>(
-                                    future: contacts,
-                                    builder: (context, snapshot) => loading
-                                        ? CircularProgressIndicator()
-                                        : DialPage(
-                                            contacts:
-                                                snapshot.data ?? List.empty()))
-                                : HistoryListView(
-                                    tabController: _tabController,
-                                    calls: snapshot.data ?? List.empty()),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
-                ),
-              ])),
+                  Expanded(
+                      child: fabActive
+                          ? DialPage(contacts: contacts)
+                          : HistoryListView(
+                              key: Key(callRecords.length.toString()),
+                              tabController: _tabController,
+                              calls: callRecords)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ]),
       floatingActionButtonLocation: FloatingActionButtonLocation.miniEndFloat,
       floatingActionButton: fabActive ? null : fabMethod(keypadAsset),
     );
@@ -413,7 +388,7 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   }
 }
 
-void registerToken(String address, BuildContext context,
+Future<void> registerToken(String address, BuildContext context,
     SharedPreferencesWithCache perf) async {
   await Firebase.initializeApp();
   String? token = await FirebaseMessaging.instance.getToken();
@@ -431,7 +406,7 @@ void sendToken(address, token, context, SharedPreferencesWithCache perf) async {
     'Connection': 'keep-alive',
     'Content-Type': 'application/x-www-form-urlencoded',
     'Origin': 'http://$address',
-    'Referer': 'http://$address/linphone_cgi/TokenCGI?15000',
+    'Referer': 'http://$address/linotik_cgi/TokenCGI?15000',
     'Sec-GPC': '1',
     'Upgrade-Insecure-Requests': '1',
     'User-Agent':
@@ -444,14 +419,14 @@ void sendToken(address, token, context, SharedPreferencesWithCache perf) async {
     'token': token,
   };
 
-  final url = Uri.parse('http://$address/linphone_cgi/TokenCGI?15000');
+  final url = Uri.parse('http://$address/linotik_cgi/TokenCGI?15000');
   try {
     var res = await http.post(url, headers: headers, body: data);
     var status = res.statusCode;
     if (status != 200) {
       alert(context, "Connection Failure", "Failed to connect to server");
+      return;
     }
-    print(res.body);
     perf.setString("token", token);
   } catch (except) {
     alert(context, "Connection Failure", "Failed to connect to server");

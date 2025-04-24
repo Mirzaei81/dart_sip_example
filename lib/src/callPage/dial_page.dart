@@ -6,9 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/classes/db.dart';
-import 'package:linphone/src/widgets/alert.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class DialPage extends StatefulWidget {
   final List<Contact> contacts;
@@ -23,23 +21,19 @@ class NumPadWidget extends State<DialPage> {
   final List<Contact> contacts;
   NumPadWidget({required this.contacts});
   String dialNumber = "";
-  late String serverAddress;
+  String serverAddress = '192.168.10.110';
 
   final FlutterPjsip pjsip = FlutterPjsip.instance;
 
   void _loadSettings() async {
-    SharedPreferencesWithCache _preferences =
-        await SharedPreferencesWithCache.create(
-            cacheOptions: const SharedPreferencesWithCacheOptions());
-    var uri = _preferences.getString('sip_uri') ?? '192.168.5.150';
-    var password = _preferences.getString('password') ?? '';
-    var user = _preferences.getString('auth_user') ?? '';
-    try {
-      await pjsip.pjsipInit(DbService.dbPath);
-      await pjsip.pjsipLogin(
-          ip: uri, password: password, username: user, port: "5060");
-    } catch (error) {
-      alert(context, "error while initing", error.toString());
+    var accounts = await DbService.listAcc();
+    var uri = '192.168.10.110';
+    var password = '';
+    var user = '';
+    if (accounts.isNotEmpty) {
+      uri = accounts[0].uri.trim();
+      user = accounts[0].username;
+      password = accounts[0].password;
     }
     setState(() {
       serverAddress = uri;
@@ -67,8 +61,7 @@ class NumPadWidget extends State<DialPage> {
   List<bool> activeDigits =
       List<bool>.generate(12, (i) => false, growable: false);
 
-  Future<Widget?> _handleCall(BuildContext context) async {
-    final dest = dialNumber;
+  Future<Widget?> _handleCall(BuildContext context, String dest) async {
     if (defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS) {
       await Permission.microphone.request();
@@ -112,88 +105,93 @@ class NumPadWidget extends State<DialPage> {
     return Container(
         child: Stack(
       children: [
-        Positioned.fill(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: contacts.length,
-            itemBuilder: (BuildContext context, int index) {
-              return Container(
-                height: 60,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(children: [
-                        contacts[index].imgPath.isNotEmpty
-                            ? Image.file(File(contacts[index].imgPath))
-                            : Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.grey,
-                                    width: 0.2,
+        ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          itemCount: contacts.length,
+          itemBuilder: (BuildContext context, int index) {
+            return Container(
+              height: 60,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(children: [
+                      contacts[index].imgPath.isNotEmpty
+                          ? Image.file(File(contacts[index].imgPath))
+                          : Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.grey,
+                                  width: 0.2,
+                                ),
+                              ),
+                              child: Center(
+                                  child: Text(
+                                contacts[index].name[0].toUpperCase(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: Color.fromARGB(255, 27, 114, 254)),
+                              )),
+                            ),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    contacts[index].name,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500),
                                   ),
-                                ),
-                                child: Center(
-                                    child: Text(
-                                  contacts[index].name[0].toUpperCase(),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      color: Color.fromARGB(255, 27, 114, 254)),
-                                )),
-                              ),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      contacts[index].name,
+                                  Text(contacts[index].phoneNumber,
                                       style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500),
-                                    ),
-                                    Text(contacts[index].phoneNumber,
-                                        style: TextStyle(
-                                            fontSize: 8,
-                                            fontWeight: FontWeight.w400,
-                                            color:
-                                                Color.fromRGBO(37, 37, 37, 1))),
-                                  ],
-                                ),
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w400,
+                                          color:
+                                              Color.fromRGBO(37, 37, 37, 1))),
+                                ],
                               ),
-                              Spacer(),
-                              Container(
-                                padding: EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius:
-                                        BorderRadius.all(Radius.circular(12))),
+                            ),
+                            Spacer(),
+                            Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(12))),
+                              child: GestureDetector(
+                                onTap: () {
+                                  _handleCall(
+                                      context, contacts[index].phoneNumber);
+                                },
                                 child: SvgPicture.asset(
                                   callAsset,
                                   width: 16,
                                   height: 16,
                                   fit: BoxFit.cover,
                                 ),
-                              )
-                            ],
-                          ),
+                              ),
+                            )
+                          ],
                         ),
-                      ]),
-                    ),
-                    Divider(
-                      height: 1,
-                    )
-                  ],
-                ),
-              );
-            },
-          ),
+                      ),
+                    ]),
+                  ),
+                  Divider(
+                    height: 1,
+                  )
+                ],
+              ),
+            );
+          },
         ),
         Positioned(
           top: 150,
@@ -222,8 +220,11 @@ class NumPadWidget extends State<DialPage> {
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
                         onTapDown: (_) => setState(() {
-                          dialNumber =
-                              dialNumber.substring(0, dialNumber.length - 1);
+                          dialNumber = dialNumber.substring(
+                              0,
+                              dialNumber.isNotEmpty
+                                  ? dialNumber.length - 1
+                                  : null);
                         }),
                         onLongPress: () => setState(() {
                           dialNumber = "";
@@ -659,7 +660,7 @@ class NumPadWidget extends State<DialPage> {
                 Column(children: [
                   GestureDetector(
                     onTap: () {
-                      _handleCall(context);
+                      _handleCall(context, dialNumber);
                     },
                     child: Container(
                       width: 100,

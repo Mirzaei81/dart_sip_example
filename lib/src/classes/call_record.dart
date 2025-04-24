@@ -1,4 +1,5 @@
 class CallRecord {
+  final int id;
   final String name;
   final String avatarPath;
   final DateTime date;
@@ -8,7 +9,8 @@ class CallRecord {
   final String recordPath;
 
   CallRecord(
-      {required this.name,
+      {required this.id,
+      required this.name,
       required this.date,
       required this.incoming,
       required this.missed,
@@ -17,6 +19,7 @@ class CallRecord {
       required this.recordPath});
   Map<String, Object?> toMap() {
     return {
+      "id": id,
       "name": name,
       "avatarPath": avatarPath,
       "date": date,

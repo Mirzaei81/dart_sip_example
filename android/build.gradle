@@ -1,6 +1,19 @@
+buildscript {
+    repositories {
+        maven { url 'https://dl.google.com/android/maven2' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.6.0'
+        classpath 'com.android:zipflinger:8.9.1'
+        classpath 'com.android.tools.build:apksig:8.7.3'
+        classpath 'com.android.tools.build:apkzlib:8.7.3'
+        classpath 'com.google.gms:google-services:4.4.2'
+    }
+}
 allprojects {
     repositories {
-        google()
+        maven { url 'https://dl.google.com/android/maven2' }
         mavenCentral()
     }
 }

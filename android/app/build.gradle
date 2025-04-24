@@ -9,6 +9,7 @@ plugins {
 }
 dependencies {
     implementation 'com.google.firebase:firebase-messaging:24.1.1'
+    implementation 'com.google.gms.google-services:com.google.gms.google-services.gradle.plugin:4.4.2'
 }
 
 def localProperties = new Properties()
@@ -31,6 +32,11 @@ if (flutterVersionName == null) {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.aar"])
     implementation 'androidx.preference:preference:1.2.1'
+    implementation 'androidx.compose.ui:ui-graphics-android:1.7.8'
+    implementation 'androidx.work:work-runtime:2.10.0'
+    implementation 'com.google.guava:guava:29.0-android'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+
 }
 
 android {
@@ -39,6 +45,7 @@ android {
     ndkVersion = "28.0.13004108"
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }

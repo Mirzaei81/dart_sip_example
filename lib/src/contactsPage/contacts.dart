@@ -1,11 +1,20 @@
-import 'package:linphone/src/classes/call_record.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/contactsPage/contact_list.dart';
 import 'package:linphone/src/contactsPage/top_nav_contacts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:linphone/src/widgets/Actions.dart';
+import 'package:linphone/src/widgets/bottomTabNavigator.dart';
+
+bool isCurrentDay(DateTime dateTime) {
+  final now = DateTime.now();
+  return dateTime.year == now.year &&
+      dateTime.month == now.month &&
+      dateTime.day == now.day;
+}
 
 class ContactPage extends StatefulWidget {
   ContactPage();
@@ -15,61 +24,58 @@ class ContactPage extends StatefulWidget {
 }
 
 class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
-  final Future<SharedPreferencesWithCache> _prefs =
-      SharedPreferencesWithCache.create(
-          cacheOptions: const SharedPreferencesWithCacheOptions());
-
   final Map<int, String> bottomTabs = {
     0: "/",
     1: "/messages",
     2: "/contacts",
     3: "/settings",
   };
-  late String _name = "";
+  late final String _name = "";
   late bool fabActive;
   late final TabController _tabController;
-  late final TabController _bottomTabController;
   late int _activeIndex;
-  late List<CallRecord> _records = List<CallRecord>.empty();
+  late List<Contact> _totContacts = List<Contact>.empty();
+  late List<Contact> _contacts = List<Contact>.empty();
 
-  Future<void> _loadName() async {
-    final perf = await _prefs;
-    setState(() {
-      _name = perf.getString("display_name") ?? "";
-    });
-  }
+  final TextEditingController _searchbarTextConteroller =
+      TextEditingController();
+
+  int missedCount = 0;
 
   @override
   void initState() {
     _tabController = TabController(
         animationDuration: Duration(microseconds: 30), length: 2, vsync: this);
-    DbService.listRecords().then((r) {
-      _records = r;
+    DbService.listContacts().then((contacts) {
+      setState(() {
+        _totContacts = contacts;
+        _contacts = contacts;
+      });
     });
-    _bottomTabController = TabController(
-        animationDuration: Duration(microseconds: 30), length: 4, vsync: this);
-    _bottomTabController.index = 2;
-    _bottomTabController.addListener(() {
-      Navigator.pushNamed(
-          context, bottomTabs[_bottomTabController.index] ?? "/");
-    });
-    _activeIndex = 0;
     fabActive = false;
-    _loadName();
+    _activeIndex = 0;
     if (mounted) {
-      _tabController.animation!.addListener(() {
+      _searchbarTextConteroller.addListener(() {
         setState(() {
-          _activeIndex = _tabController.index;
+          _contacts = _totContacts
+              .where((c) => c.name
+                  .toLowerCase()
+                  .contains(_searchbarTextConteroller.text.toLowerCase()))
+              .toList();
         });
       });
     }
+    _tabController.animation!.addListener(() {
+      setState(() {
+        _activeIndex = _tabController.index;
+      });
+    });
     super.initState();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _bottomTabController.dispose();
     super.dispose();
   }
 
@@ -87,74 +93,16 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return fabActive ? NewContactPage() : messagesView(_records);
+    return fabActive ? newContactPage() : messagesView(_contacts);
   }
 
-  Scaffold messagesView(List<CallRecord> calls) {
+  Scaffold messagesView(List<Contact> calls) {
     const String userAsset = "assets/images/user.svg";
-    const String bellAsset = "assets/images/Bellsvg.svg";
-    const String searchAsset = "assets/images/search.svg";
     const String addAsset = "assets/images/add_circle.svg";
 
-    const String contactFillAsset = "assets/images/contact_fill.svg";
-
-    const String bubbleOutlineAsset = "assets/images/bubble_outline.svg";
-    const String callOutlineAsset = "assets/images/call_outline.svg";
-    const String settingsOutlineAsset = "assets/images/settings_outline.svg";
     return Scaffold(
       // floatingActionButtonAnimator: Fade, TODO
-      bottomNavigationBar: Container(
-        color: Color(0xf7f7f7f7),
-        child: Container(
-          width: 343,
-          height: 64,
-          clipBehavior: Clip.hardEdge,
-          margin: EdgeInsets.only(bottom: 6, right: 16, left: 16),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(18),
-                  spreadRadius: 0,
-                  blurRadius: 7,
-                  offset: Offset(0, 7),
-                ),
-              ],
-              borderRadius: BorderRadius.circular(24)),
-          child: TabBar(
-              indicator: BoxDecoration(
-                borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(8),
-                    bottomRight: Radius.circular(8)),
-                border: Border(
-                    top: BorderSide(
-                  color: Color.fromARGB(255, 27, 114, 254),
-                  width: 3.0,
-                )),
-              ),
-              controller: _bottomTabController,
-              tabs: [
-                Tab(
-                  icon: SvgPicture.asset(
-                    callOutlineAsset,
-                  ),
-                  text: 'Call',
-                ),
-                Tab(
-                  icon: SvgPicture.asset(bubbleOutlineAsset),
-                  text: "Messages",
-                ),
-                Tab(
-                  icon: SvgPicture.asset(contactFillAsset),
-                  text: "Contacts",
-                ),
-                Tab(
-                  icon: SvgPicture.asset(settingsOutlineAsset),
-                  text: "Settings",
-                )
-              ]),
-        ),
-      ),
+      bottomNavigationBar: BottomNavBar(2),
       backgroundColor: Color.fromARGB(255, 27, 114, 254),
       appBar: AppBar(
         actionsPadding: EdgeInsets.all(20),
@@ -185,32 +133,44 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
           );
         }),
         actions: [
-          Row(
-            children: [
-              SvgPicture.asset(
-                bellAsset,
-                width: 16,
-                height: 16,
-                fit: BoxFit.contain,
-              ),
-              SizedBox(
-                width: 10,
-              ),
-              SvgPicture.asset(
-                searchAsset,
-                width: 16,
-                height: 16,
-                fit: BoxFit.contain,
-              )
-            ],
+          NavActions(
+            missedCount: missedCount,
+            searchbarTextConteroller: _searchbarTextConteroller,
+            onTap: (phone) =>
+                Navigator.pushNamed(context, "/outgoing", arguments: phone),
+            messages: calls
+                .where((c) => isCurrentDay(c.date))
+                .map((c) => {
+                      c.phoneNumber:
+                          "${c.name} Has recently been added ti you're contacts"
+                    })
+                .toList(),
           )
         ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "world",
+          Padding(
+            padding: EdgeInsets.only(left: 16, top: 6, bottom: 28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("You Have",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 8)),
+                Text("${_contacts.length.toString()} Contacts",
+                    style: TextStyle(
+                        color: Colors.white,
+                        decorationColor: Colors.white,
+                        decoration: TextDecoration.underline,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
+              ],
+            ),
           ),
           Expanded(
             child: Container(
@@ -229,8 +189,11 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                       padding: const EdgeInsets.only(left: 20, right: 20),
                       child: !fabActive
                           ? TopNavContact(
+                              searchContactController:
+                                  _searchbarTextConteroller,
                               tabController: _tabController,
-                              activeIndex: _activeIndex)
+                              activeIndex: _activeIndex,
+                              counts: calls.length)
                           : Padding(
                               padding: const EdgeInsets.only(top: 16.0),
                               child: Text(
@@ -246,7 +209,9 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                       child: fabActive
                           ? Placeholder()
                           : ContactListView(
-                              tabController: _tabController, messages: calls),
+                              key: ValueKey(calls.length),
+                              tabController: _tabController,
+                              contacts: calls),
                     ),
                   ],
                 ),
@@ -260,7 +225,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
     );
   }
 
-  Scaffold NewContactPage() {
+  Scaffold newContactPage() {
     const String arrowLeftAsset = "assets/images/arrow_left.svg";
     const String sentAsset = "assets/images/sent.svg";
     return Scaffold(

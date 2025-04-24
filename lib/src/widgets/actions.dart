@@ -3,12 +3,15 @@ import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/widgets/bubble.dart';
 
 class NavActions extends StatelessWidget {
-  const NavActions({
-    super.key,
-    required this.missedCount,
-    required TextEditingController searchbarTextConteroller,
-  }) : _searchbarTextConteroller = searchbarTextConteroller;
-
+  const NavActions(
+      {super.key,
+      required this.missedCount,
+      required TextEditingController searchbarTextConteroller,
+      required this.messages,
+      required this.onTap})
+      : _searchbarTextConteroller = searchbarTextConteroller;
+  final PopupMenuItemSelected<String> onTap;
+  final List<Map<String, String>> messages;
   final int missedCount;
   final String bellAsset = "assets/images/Bellsvg.svg";
   final String searchAsset = "assets/images/search.svg";
@@ -31,20 +34,22 @@ class NavActions extends StatelessWidget {
               height: 16,
             ),
           ),
-          shape: ChatBubble(color: Colors.white, alignment: Alignment.topLeft),
-          onSelected: (String result) {
-            // Handle the selected action
-          },
+          shape: ChatBubble(
+              color: Colors.white, alignment: Alignment.topLeft, pos: 0.6),
+          onSelected: onTap,
           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(
-              value: 'Action1',
-              child: Text('Action 1'),
-              textStyle: TextStyle(backgroundColor: Colors.white),
-            ),
-            const PopupMenuItem<String>(
-              value: 'Action2',
-              child: Text('Action 2'),
-            ),
+            for (var iter in messages)
+              PopupMenuItem<String>(
+                value: iter.keys.toString(),
+                child: Text(
+                  iter.values
+                      .toString()
+                      .replaceAllMapped(RegExp(r"\(|\)"), (m) => ""),
+                  style: TextStyle(fontSize: 10),
+                ),
+                textStyle:
+                    TextStyle(backgroundColor: Colors.white, fontSize: 6),
+              ),
           ],
         ),
         SizedBox(
@@ -58,13 +63,12 @@ class NavActions extends StatelessWidget {
             width: 16,
             height: 16,
           ),
-          shape: ChatBubble(color: Colors.white, alignment: Alignment.topLeft),
-          onSelected: (String result) {
-            // Handle the selected action
-          },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+          shape: ChatBubble(
+              color: Colors.white, alignment: Alignment.topLeft, pos: 0.8),
+          itemBuilder: (BuildContext context) => [
             PopupMenuItem<String>(
               value: 'Action1',
+              padding: EdgeInsets.symmetric(horizontal: 48),
               child: TextField(
                 controller: _searchbarTextConteroller,
                 keyboardType: TextInputType.text,
