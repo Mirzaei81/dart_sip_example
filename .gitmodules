@@ -1,0 +1,3 @@
+[submodule "flutter_pjsip"]
+	path = flutter_pjsip
+	url = https://github.com/Mirzaei81/flutter_pjsip
