@@ -9,7 +9,7 @@ class Contact {
       "name": name,
       "img_path": imgPath,
       "phone_number": phoneNumber,
-      "date": date
+      "date": date.millisecondsSinceEpoch
     };
   }
 

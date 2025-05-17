@@ -12,3 +12,6 @@ record audio on c calls
 ______
 wait few second after new channel event sett time out or somthing to wait 
 login the moment you recive push notification
+____________________________________
+fix databases error  when date was incorrect in flutter pjsip 
+fix crashes on aduio calls 

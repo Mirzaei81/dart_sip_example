@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_contacts/properties/account.dart';
+import 'package:linphone/src/classes/accounts.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/contactsPage/contact_list.dart';
@@ -40,6 +42,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
   final TextEditingController _searchbarTextConteroller =
       TextEditingController();
 
+  late List<Accounts> _accs = List<Accounts>.empty();
   int missedCount = 0;
 
   @override
@@ -50,6 +53,11 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
       setState(() {
         _totContacts = contacts;
         _contacts = contacts;
+      });
+    });
+    DbService.listAcc().then((acc) {
+      setState(() {
+        _accs = acc;
       });
     });
     fabActive = false;
@@ -228,6 +236,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
   Scaffold newContactPage() {
     const String arrowLeftAsset = "assets/images/arrow_left.svg";
     const String sentAsset = "assets/images/sent.svg";
+    const String userAsset = "assets/images/user_no_outline.svg";
     return Scaffold(
         backgroundColor: Colors.white,
         resizeToAvoidBottomInset: true,
@@ -274,7 +283,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
             Row(
               children: [
                 Text(
-                  "New Conversation",
+                  "New Contact",
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -286,11 +295,106 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
           ]),
           bottom: PreferredSize(
               preferredSize: Size.fromHeight(50),
-              child: DropdownButton<int>(
-                items: [
-                  DropdownMenuItem(child: Row(children: [Text("Hello World")]))
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                  ),
+                  Text("Save contact in",
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w400)),
+                  SizedBox(
+                    width: 21,
+                  ),
+                  Expanded(
+                    child: DropdownMenu<int>(
+                      // controller: _contactController,
+                      trailingIcon: Icon(
+                        Icons.add,
+                        color: Color.fromRGBO(27, 115, 254, 1),
+                        size: 18,
+                      ),
+                      alignmentOffset: Offset(8, 16),
+                      menuStyle: MenuStyle(
+                        backgroundColor: WidgetStatePropertyAll(Colors.white),
+                        shadowColor: WidgetStatePropertyAll(
+                            Color.fromRGBO(0, 0, 0, 0.07)),
+                        shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24))),
+                      ),
+                      width: double.infinity,
+                      enableFilter: true,
+                      requestFocusOnTap: true,
+                      hintText: "Recipient",
+                      inputDecorationTheme: InputDecorationTheme(
+                        hintStyle:
+                            TextStyle(color: Color.fromRGBO(177, 177, 177, 1)),
+                        outlineBorder: BorderSide.none,
+                        filled: true,
+                        isDense: true,
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                              width: 0,
+                              color: Colors.transparent,
+                              style: BorderStyle.none),
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                        fillColor: Color.fromRGBO(247, 247, 247, 1),
+                        focusColor: Colors.transparent,
+                        hoverColor: Colors.transparent,
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(
+                              width: 0,
+                              color: Colors.transparent,
+                              style: BorderStyle.none),
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 5.0, horizontal: 9),
+                      ),
+                      onSelected: (int? id) {
+                        Navigator.pushNamed(context, "/chat", arguments: id);
+                      },
+                      dropdownMenuEntries: _accs.map((Accounts item) {
+                        return DropdownMenuEntry<int>(
+                            value: item.id ?? 0,
+                            label: item.username,
+                            leadingIcon: Container(
+                              width: 32,
+                              height: 32,
+                              margin: EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                  color: Color.fromRGBO(247, 247, 247, 1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      width: 0.2,
+                                      color: Color.fromRGBO(177, 177, 177, 1))),
+                              child: Center(
+                                child: SvgPicture.asset(
+                                  userAsset,
+                                  colorFilter: ColorFilter.mode(
+                                      Color.fromRGBO(27, 115, 254, 0.7),
+                                      BlendMode.srcIn),
+                                ),
+                              ),
+                            ),
+                            labelWidget: Container(
+                              key: ValueKey<int>(1),
+                              child: Row(
+                                children: [
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [Text(item.username), Divider()],
+                                  ),
+                                ],
+                              ),
+                            ));
+                      }).toList(),
+                    ),
+                  ),
                 ],
-                onChanged: (int? value) {},
               )),
         ));
   }

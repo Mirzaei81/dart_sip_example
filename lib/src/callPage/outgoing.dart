@@ -1,4 +1,5 @@
 import 'package:flutter_pjsip/flutter_pjsip.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/classes/contact.dart';
@@ -41,12 +42,10 @@ class OutgoinCallWidget extends State<Outgoing> {
 
   Future<void> _hold() async {
     await pjsip.pjsipHold();
-    return null;
   }
 
   Future<void> _unHold() async {
     await pjsip.pjsipReinvite();
-    return null;
   }
 
   Future<void> _speaker() async {
@@ -70,10 +69,50 @@ class OutgoinCallWidget extends State<Outgoing> {
     return await DbService.getContact(number);
   }
 
+  static const platform = MethodChannel('com.linotik.app/main');
+  Future<void> _getBatteryLevel() async {
+    try {
+      final result = await platform.invokeMethod<bool>('cancel');
+      print('Cancel notif result : $result .');
+    } on PlatformException catch (e) {
+      print("Failed to Cancel notif : '${e.message}'.");
+    }
+  }
+
   @override
   void initState() {
-    super.initState();
     Vibration.cancel();
+    // pjsip.pjsipInit(DbService.dbPath);
+    DbService.listAcc().then((a) => {
+          pjsip
+              .pjsipLogin(
+                  username: a[0].username,
+                  password: a[0].password,
+                  ip: a[0].uri,
+                  port: "5060")
+              .then((b) => {
+                    pjsip.onSipStateChanged.listen((map) {
+                      print(map);
+                      final state = map['call_state'];
+                      final remoteUri = map['remote_uri'];
+                      print("New State $state from ${remoteUri.toString()}");
+                      switch (state) {
+                        case "INCOMING":
+                          {
+                            pjsip.pjsipReceive().then(
+                                (res) => print("did rescive call : $res"));
+                            break;
+                          }
+                        case "DISCONNECTED":
+                          {
+                            platform.invokeMethod("report_crash").then(print);
+                            Navigator.pushNamed(context, "/");
+                            break;
+                          }
+                      }
+                    }),
+                  }),
+        });
     DbService.getContact(peerNumber).then((c) {
       if (c != null) {
         setState(() {
@@ -81,9 +120,9 @@ class OutgoinCallWidget extends State<Outgoing> {
         });
       }
     });
-    FlutterPjsip.instance.pjsipReceive();
-
+    _getBatteryLevel();
     _loadSettings();
+    super.initState();
   }
 
   void displayNumpad() {
@@ -94,9 +133,6 @@ class OutgoinCallWidget extends State<Outgoing> {
 
   @override
   Widget build(BuildContext context) {
-    final arguments = (ModalRoute.of(context)?.settings.arguments ??
-        <String, dynamic>{}) as Map;
-
     const String userAsset = "assets/images/user_no_outline.svg";
     return Container(
         decoration: BoxDecoration(
@@ -109,7 +145,7 @@ class OutgoinCallWidget extends State<Outgoing> {
           children: [
             SizedBox(height: 77),
             FutureBuilder(
-              future: getContact(arguments["peerNumber"] ?? ""),
+              future: getContact(peerNumber ?? ""),
               builder: (ctx, AsyncSnapshot<Contact?> snap) => Column(
                 children: [
                   Container(
@@ -166,22 +202,37 @@ class OutgoinCallWidget extends State<Outgoing> {
                           snap.data!.name.isEmpty)
                       ? snap.data!.name
                       : ""),
-                  Text(arguments["peerNumber"] ?? "")
+                  Text(
+                    peerNumber,
+                    style: TextStyle(
+                        color: Colors.black, decoration: TextDecoration.none),
+                  )
                 ],
               ),
             ),
-            Container(
-              alignment: Alignment.bottomCenter,
-              child: showNumpad
-                  ? Numpad(
-                      (arguments["peerNumber"] ?? "")
-                          .split("@")[0]
-                          .substring("sip:".length),
-                      (number) => _addCall(number))
-                  : funcPad(_endCall, (number) => _addCall(number), _hold,
-                      _bluetooth, _speaker, _mute, displayNumpad),
+            PopScope(
+              canPop: true,
+              onPopInvokedWithResult: (poped, result) => {
+                if (poped)
+                  {
+                    platform.invokeMethod("report_crash").then(print),
+                    Navigator.pushNamed(context, "/")
+                  }
+              },
+              child: Container(
+                alignment: Alignment.center,
+                child: showNumpad
+                    ? Numpad(
+                        (peerNumber ?? "")
+                            .split("@")[0]
+                            .substring("sip:".length),
+                        (number) => _addCall(number))
+                    : funcPad(_endCall, (number) => _addCall(number), _hold,
+                        _bluetooth, _speaker, _mute, displayNumpad),
+              ),
             ),
           ],
         ));
   }
 }
+//

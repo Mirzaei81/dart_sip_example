@@ -16,16 +16,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
 
 class Incoming extends StatefulWidget {
-  Incoming();
+  Incoming(this.phoneNumber);
+  String phoneNumber;
 
   @override
-  State<StatefulWidget> createState() => OutgoinCallWidget();
+  State<StatefulWidget> createState() => OutgoinCallWidget(phoneNumber);
 }
 
 class OutgoinCallWidget extends State<Incoming>
     with SingleTickerProviderStateMixin {
+  OutgoinCallWidget(this.phoneNumber);
+
   bool showNumpad = false;
   late final String serverAddress;
+  String phoneNumber;
 
   final FlutterPjsip pjsip = FlutterPjsip.instance;
   bool answerClicked = false;
@@ -42,6 +46,7 @@ class OutgoinCallWidget extends State<Incoming>
     FlutterPjsip.instance.onSipStateChanged.listen((map) {
       final state = map['call_state'];
       final remoteUri = map['remote_uri'];
+      print(state);
       setState(() {
         callerName = remoteUri;
         callerNumber = remoteUri;
@@ -214,7 +219,8 @@ class OutgoinCallWidget extends State<Incoming>
                                             .cancel(0);
                                         Vibration.cancel();
                                         Navigator.pushNamed(
-                                            context, "/outgoing");
+                                            context, "/outgoing",
+                                            arguments: phoneNumber);
                                       }
                                       answerClicked = false;
                                       answer = 0;

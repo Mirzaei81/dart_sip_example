@@ -15,7 +15,7 @@ dependencies:
     sdk: flutter
 
   flutter_pjsip:
-    path: ../flutter_pjsip
+    path: ./flutter_pjsip
   
   shared_preferences: ^2.5.2
   # flutter_openvpn: 
@@ -76,6 +76,7 @@ flutter:
    - assets/images/contact_fill.svg
    - assets/images/contact_outline.svg
    - assets/images/pin.svg
+   - assets/images/unpin.svg
    - assets/images/add_circle.svg
    - assets/images/arrow_left.svg
    - assets/images/attachment.svg

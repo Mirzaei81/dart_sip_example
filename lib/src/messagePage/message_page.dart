@@ -182,7 +182,9 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
             searchbarTextConteroller: _searchbarTextConteroller,
             onTap: (result) async => {
               await DbService.seenMessage(int.tryParse(result) ?? 0),
-              Navigator.pushNamed(context, "/", arguments: int.tryParse(result))
+              Navigator.pushNamed(context, "/chat",
+                  arguments:
+                      int.tryParse(result.replaceAll(RegExp(r"\(|\)"), "")))
             },
             messages: messages
                 .where((m) => !m.read)

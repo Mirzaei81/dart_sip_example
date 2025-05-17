@@ -9,6 +9,7 @@ import 'package:linphone/src/classes/contact.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/classes/message.dart';
 import 'package:linphone/src/util/sms.dart';
+import 'package:linphone/src/widgets/context_menu.dart';
 
 class ChatPage extends StatefulWidget {
   final int peerId;
@@ -26,11 +27,13 @@ class ChatState extends State<ChatPage> {
   Contact? peer;
 
   late TextEditingController _massagesControler;
-
   final ScrollController _controller = ScrollController();
 
   bool isScrooling = true;
   final String pinAsset = "assets/images/pin.svg";
+  final String unPinAsset = "assets/images/unpin.svg";
+
+  final ContextMenuController _contextController = ContextMenuController();
 
   void fetchData() async {
     var messages = await DbService.getMessagefromPeer(peerId);
@@ -74,6 +77,7 @@ class ChatState extends State<ChatPage> {
     await DbService.insertMessages(message);
     msgs.add(message);
     _controller.jumpTo(_controller.position.maxScrollExtent);
+    print(peer!.phoneNumber);
     if (peer != null) {
       SmsHandler.send(_massagesControler.text, peer!.phoneNumber, message.id);
       setState(() {
@@ -127,20 +131,42 @@ class ChatState extends State<ChatPage> {
                         Text("Remove chat history")
                       ],
                     )),
-                PopupMenuItem(
-                    onTap: () => DbService.pinMessages(peerId),
-                    child: Row(
-                      children: [
-                        SvgPicture.asset(
-                          pinAsset,
-                          width: 24,
-                          height: 24,
-                          //   colorFilter: ColorFilter.mode(
-                          //       Colors.gray, BlendMode.srcIn),
-                        ),
-                        Text("Pin message")
-                      ],
-                    ))
+                msgs.where((m) => m.isPinned == true).length == msgs.length
+                    ? PopupMenuItem(
+                        onTap: () => {
+                              DbService.pinMessages(peerId, false),
+                              msgs.forEach((m) => m.isPinned = false),
+                            },
+                        child: Row(
+                          children: [
+                            Transform.flip(
+                              flipX: true,
+                              child: SvgPicture.asset(
+                                unPinAsset,
+                                width: 24,
+                                height: 24,
+                              ),
+                            ),
+                            Text("UnPin message")
+                          ],
+                        ))
+                    : PopupMenuItem(
+                        onTap: () => {
+                              DbService.pinMessages(peerId, true),
+                              msgs.forEach((m) => m.isPinned = true),
+                            },
+                        child: Row(
+                          children: [
+                            SvgPicture.asset(
+                              pinAsset,
+                              width: 24,
+                              height: 24,
+                              //   colorFilter: ColorFilter.mode(
+                              //       Colors.gray, BlendMode.srcIn),
+                            ),
+                            Text("UnPin message")
+                          ],
+                        ))
               ],
               child: Container(
                   padding: EdgeInsets.all(2),
@@ -230,37 +256,40 @@ class ChatState extends State<ChatPage> {
             : SizedBox.shrink(),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.miniStartFloat,
-      body: Container(
-        margin: EdgeInsets.only(bottom: 64),
-        child: ListView.builder(
-          scrollDirection: Axis.vertical,
-          padding: EdgeInsets.all(8),
-          itemCount: msgs.length,
-          controller: _controller,
-          itemBuilder: (context, index) {
-            Message message = msgs[index];
-            return Container(
-              width: double.infinity,
-              child: Column(
-                children: [
-                  index == 0
-                      ? Center(child: Text(_formatDate(message.dateSend)))
-                      : msgs[index - 1].dateSend.day != message.dateSend.day
-                          ? Center(child: Text(_formatDate(message.dateSend)))
-                          : SizedBox.shrink(),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: message.isMine
-                        ? MainAxisAlignment.end
-                        : MainAxisAlignment.start,
-                    children: message.isMine
-                        ? getMessageItem(message).reversed.toList()
-                        : getMessageItem(message),
-                  ),
-                ],
-              ),
-            );
-          },
+      body: GestureDetector(
+        onTap: () => _contextController.remove(),
+        child: Container(
+          margin: EdgeInsets.only(bottom: 64),
+          child: ListView.builder(
+            scrollDirection: Axis.vertical,
+            padding: EdgeInsets.all(8),
+            itemCount: msgs.length,
+            controller: _controller,
+            itemBuilder: (context, index) {
+              Message message = msgs[index];
+              return Container(
+                width: double.infinity,
+                child: Column(
+                  children: [
+                    index == 0
+                        ? Center(child: Text(_formatDate(message.dateSend)))
+                        : msgs[index - 1].dateSend.day != message.dateSend.day
+                            ? Center(child: Text(_formatDate(message.dateSend)))
+                            : SizedBox.shrink(),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: message.isMine
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: message.isMine
+                          ? getMessageItem(message).reversed.toList()
+                          : getMessageItem(message),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
       bottomSheet: Padding(
@@ -327,36 +356,75 @@ class ChatState extends State<ChatPage> {
   }
 
   List<Widget> getMessageItem(Message message) => [
-        GestureDetector(
-          onTap: () => {},
-          child: Container(
-            margin: EdgeInsets.symmetric(vertical: 6),
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: message.isMine ? Colors.blue[500] : Colors.grey[300],
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-                topLeft:
-                    message.isMine ? Radius.circular(16) : Radius.circular(4),
-                topRight:
-                    message.isMine ? Radius.circular(4) : Radius.circular(16),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message.content,
-                  softWrap: true,
-                  maxLines: 10,
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    color: message.isMine ? Colors.white : Colors.black,
+        Flexible(
+          child: ContextMenuRegion(
+            controller: _contextController,
+            contextMenuBuilder: (context, offset) {
+              return AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: TextSelectionToolbarAnchors(primaryAnchor: offset),
+                buttonItems: <ContextMenuButtonItem>[
+                  ContextMenuButtonItem(
+                    onPressed: () => {
+                      DbService.removeMessage(message.id)
+                          .then((_) => setState(() {
+                                msgs.removeWhere((m) => m.id == message.id);
+                              }))
+                    },
+                    label: 'delete',
                   ),
+                  ContextMenuButtonItem(
+                    onPressed: () {
+                      ContextMenuController.removeAny();
+                      DbService.pinMessages(message.id, !message.isPinned)
+                          .then((_) => setState(() {
+                                msgs
+                                    .where((m) => m.id == message.id)
+                                    .forEach((m) => m.isPinned = !m.isPinned);
+                              }));
+                    },
+                    label: '${message.isPinned ? "Unp" : "p"}in the Message',
+                  ),
+                  ContextMenuButtonItem(
+                    onPressed: () {
+                      ContextMenuController.removeAny();
+                      setState(() {
+                        _massagesControler.text = message.content;
+                      });
+                    },
+                    label: 'edit',
+                  )
+                ],
+              );
+            },
+            child: Container(
+              margin: EdgeInsets.symmetric(vertical: 6),
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: message.isMine ? Colors.blue[500] : Colors.grey[300],
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                  topLeft:
+                      message.isMine ? Radius.circular(16) : Radius.circular(4),
+                  topRight:
+                      message.isMine ? Radius.circular(4) : Radius.circular(16),
                 ),
-                SizedBox(height: 4),
-              ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.content,
+                    softWrap: true,
+                    maxLines: 10,
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      color: message.isMine ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                ],
+              ),
             ),
           ),
         ),
@@ -377,4 +445,13 @@ class ChatState extends State<ChatPage> {
               )
             : SizedBox.shrink()
       ];
+
+  DialogRoute _showDialog(BuildContext context) {
+    return DialogRoute<void>(
+      context: context,
+      builder: (context) => const AlertDialog(
+        title: Text('Image saved! (not really though)'),
+      ),
+    );
+  }
 }

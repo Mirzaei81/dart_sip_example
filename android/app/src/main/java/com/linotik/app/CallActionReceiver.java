@@ -37,59 +37,33 @@ public class CallActionReceiver extends BroadcastReceiver {
     private static final String TABLE_NAME = "accounts";
     @Override
     public void onReceive(Context context, Intent intent) {
-        String action = intent.getAction();
-        if (action != null) {
-            switch (action) {
-                case "ACTION_ANSWER":
-                    Log.d(TAG,"Answering the call");
-                    // Create an Intent to start your Activity
-                    Intent activityIntent = new Intent(context,IncomingCallActivity.class);
-                    // Create a PendingIntent
-                    activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    activityIntent.putExtras(Objects.requireNonNull(intent.getExtras()));
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(DATABASE_NAME, null, OPEN_READWRITE);
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        ContentValues cv = new ContentValues();
 
-                    PendingIntent pendingIntent =
-                            PendingIntent.getActivity(context, 0, activityIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                    try {
-                        // Send the PendingIntent to start the Activity
-                        context.startActivity(activityIntent,intent.getExtras());
-//                        pendingIntent.send();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    break;
-                case "ACTION_DECLINE":
-                    SQLiteDatabase db = SQLiteDatabase.openDatabase(DATABASE_NAME, null, OPEN_READWRITE);
-                    LocalDateTime now = LocalDateTime.now();
-                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-                    ContentValues cv = new ContentValues();
+        cv.put("personId", Objects.requireNonNull(intent.getExtras()).getLong("id",1));
+        cv.put("date",now.format(formatter));
+        cv.put("incoming",true);
+        cv.put("missed",true);
+        cv.put("record_path","");
+        db.insert("call_records",null,cv);
 
-                    cv.put("personId", Objects.requireNonNull(intent.getExtras()).getLong("id",1));
-                    cv.put("date",now.format(formatter));
-                    cv.put("incoming",true);
-                    cv.put("missed",true);
-                    cv.put("record_path","");
-                    db.insert("call_records",null,cv);
-
-                    int notificationId = intent.getIntExtra("Notification_ID", 1);
-                    NotificationManagerCompat notificationManager = NotificationManagerCompat.from(context);
-                    notificationManager.cancel(notificationId);
-                    PjSipManager instence =  PjSipManager.getInstance();
-                    try {
-                        instence.libRegThread(Thread.currentThread().getName());
-                        instence.hangup();
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                    Uri ringtoneUri = RingtoneManager.getActualDefaultRingtoneUri(context,RingtoneManager.TYPE_RINGTONE);
-                    RingtoneManager.getRingtone(context,ringtoneUri).stop();
-                    Vibrator vibrator = (Vibrator) context.getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
-                    vibrator.cancel();
-                    break;
-            }
-            // Important: Cancel the notification after handling the action
-            NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            notificationManager.cancel(123); // Use the same NOTIFICATION_ID
+        int notificationId = intent.getIntExtra("Notification_ID", 123);
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(context);
+        notificationManager.cancel(notificationId);
+        notificationManager.cancel(123); // Use the same NOTIFICATION_ID
+        PjSipManager instence =  PjSipManager.getInstance();
+        try {
+            instence.libRegThread(Thread.currentThread().getName());
+            instence.hangup();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
+        Uri ringtoneUri = RingtoneManager.getActualDefaultRingtoneUri(context,RingtoneManager.TYPE_RINGTONE);
+        RingtoneManager.getRingtone(context,ringtoneUri).stop();
+        Vibrator vibrator = (Vibrator) context.getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
+        vibrator.cancel();
+        // Important: Cancel the notification after handling the action
     }
 }

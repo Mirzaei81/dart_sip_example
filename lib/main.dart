@@ -33,7 +33,6 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  static final FlutterPjsip _helper = FlutterPjsip.instance;
   late final Map<String, PageContentBuilder> routes;
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
@@ -46,22 +45,34 @@ class MyApp extends StatelessWidget {
       '/settings': ([Object? arguments]) => SettingsPage(),
       '/register': ([Object? arguments]) => RegisterWidget(),
       "/outgoing": ([Object? arguments]) => Outgoing(arguments as String),
-      "/incoming": ([Object? arguments]) => Incoming(),
+      "/incoming": ([Object? arguments]) => Incoming(arguments as String),
       '/about': ([Object? arguments]) => AboutWidget(),
     };
   }
 
   Route<dynamic>? _onGenerateRoute(RouteSettings settings) {
-    final String? name = settings.name;
+    String? name = settings.name;
+    String arguments = "";
+    if (name!.contains("?")) {
+      var kv = name.split("?");
+      name = kv[0];
+      arguments = kv[1];
+    }
+    if (name == "/outgoing") {
+      print("***OUTGOING CALL INTO ==> $arguments , ${settings.arguments}");
+    }
+
     final PageContentBuilder? pageContentBuilder = routes[name!];
     if (pageContentBuilder != null) {
       if (settings.arguments != null) {
         final Route route = CustomMaterialRouter<Widget>(
+            settings: settings,
             builder: (context) => pageContentBuilder(settings.arguments));
         return route;
       } else {
         final Route route = CustomMaterialRouter<Widget>(
-            builder: (context) => pageContentBuilder(_helper));
+            settings: settings,
+            builder: (context) => pageContentBuilder(arguments));
         return route;
       }
     }

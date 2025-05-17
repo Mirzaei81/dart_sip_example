@@ -68,6 +68,7 @@ class _MyRegisterWidget extends State<RegisterWidget> {
         id: 0,
         uri: _sipUriController.text.trim(),
         username: _authorizationUserController.text.trim(),
+        active: true,
         password: _passwordController.text.trim());
     await DbService.insertAcc(acc);
     try {
@@ -81,9 +82,6 @@ class _MyRegisterWidget extends State<RegisterWidget> {
         password: acc.password,
         ip: acc.uri,
         port: "5060");
-    FlutterPjsip.instance.onSipStateChanged.listen((map) {
-      print(map);
-    });
     registrationStateChanged(state);
 
     return;

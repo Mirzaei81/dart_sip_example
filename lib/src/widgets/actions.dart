@@ -41,11 +41,26 @@ class NavActions extends StatelessWidget {
             for (var iter in messages)
               PopupMenuItem<String>(
                 value: iter.keys.toString(),
-                child: Text(
-                  iter.values
-                      .toString()
-                      .replaceAllMapped(RegExp(r"\(|\)"), (m) => ""),
-                  style: TextStyle(fontSize: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        iter.values
+                            .toString()
+                            .replaceAllMapped(RegExp(r"\(|\)"), (m) => ""),
+                        style: TextStyle(fontSize: 10),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                      ),
+                    ),
+                    Divider(
+                      color: Color.fromRGBO(27, 115, 254, 1),
+                      thickness: 1,
+                    )
+                  ],
                 ),
                 textStyle:
                     TextStyle(backgroundColor: Colors.white, fontSize: 6),

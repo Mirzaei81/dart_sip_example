@@ -72,8 +72,12 @@ class RecordState extends State<RecordBuilder> {
   Duration? _duration;
   Duration? _position;
 
+  late PlayerState _playerState;
+
   @override
   void initState() {
+    player = AudioPlayer();
+    _playerState = player.state;
     player.setReleaseMode(ReleaseMode.stop);
     super.initState();
   }
@@ -97,6 +101,7 @@ class RecordState extends State<RecordBuilder> {
           File(item.recordPath).exists().then(
               (e) => {player.setSource(DeviceFileSource(item.recordPath))});
           setState(() {
+            _playerState = PlayerState.paused;
             selected[item.id - 1] = !selected[item.id - 1];
           });
         },
@@ -232,11 +237,30 @@ class RecordState extends State<RecordBuilder> {
                                         false)
                                     ? Row(
                                         children: [
-                                          player.state == PlayerState.paused
+                                          _playerState == PlayerState.playing
                                               ? GestureDetector(
+                                                  onTap: () => {
+                                                        player.pause(),
+                                                        setState(() {
+                                                          _playerState =
+                                                              PlayerState
+                                                                  .paused;
+                                                        })
+                                                      },
+                                                  child: SvgPicture.asset(
+                                                    pauseAsset,
+                                                    width: 24,
+                                                    height: 24,
+                                                  ))
+                                              : GestureDetector(
                                                   onTap: () {
                                                     try {
                                                       player.resume();
+
+                                                      setState(() {
+                                                        _playerState =
+                                                            PlayerState.playing;
+                                                      });
                                                     } catch (e) {
                                                       alert(
                                                           context,
@@ -248,14 +272,7 @@ class RecordState extends State<RecordBuilder> {
                                                       margin:
                                                           EdgeInsets.all(16),
                                                       child: SvgPicture.asset(
-                                                          playAsset)))
-                                              : GestureDetector(
-                                                  onTap: () => player.pause(),
-                                                  child: SvgPicture.asset(
-                                                    pauseAsset,
-                                                    width: 24,
-                                                    height: 24,
-                                                  )),
+                                                          playAsset))),
                                           Expanded(
                                             child: SliderTheme(
                                               data: SliderTheme.of(context)

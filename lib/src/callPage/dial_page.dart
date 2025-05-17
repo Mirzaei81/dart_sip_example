@@ -38,37 +38,22 @@ class NumPadWidget extends State<DialPage> {
     setState(() {
       serverAddress = uri;
     });
-    pjsip.onSipStateChanged.listen((map) {
-      final state = map['call_state'];
-      final remoteUri = map['remote_uri'];
-      switch (state) {
-        case "CALLING":
-          {
-            Navigator.pushNamed(context, "/outgoing",
-                arguments: {"peerNumber": remoteUri});
-            break;
-          }
-      }
-    });
   }
 
   @override
   void initState() {
     super.initState();
+    [
+      Permission.microphone,
+      Permission.phone,
+    ].request();
     _loadSettings();
   }
 
   List<bool> activeDigits =
       List<bool>.generate(12, (i) => false, growable: false);
 
-  Future<Widget?> _handleCall(BuildContext context, String dest) async {
-    if (defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS) {
-      await Permission.microphone.request();
-    }
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      await Permission.phone.request();
-    }
+  Future<void> _handleCall(BuildContext context, String dest) async {
     if (dest.isEmpty) {
       showDialog<void>(
         context: context,
@@ -88,13 +73,25 @@ class NumPadWidget extends State<DialPage> {
           );
         },
       );
-      return null;
+      return;
     }
     // dialNumber =
     //     dialNumber.startsWith("0") ? dialNumber.substring(1) : dialNumber;
     print(dialNumber + "\t" + serverAddress);
-    pjsip.pjsipCall(username: dialNumber, ip: serverAddress, port: "5060");
-    return null;
+    DbService.listAcc().then((a) => {
+          pjsip
+              .pjsipLogin(
+                  username: a[0].username,
+                  password: a[0].password,
+                  ip: a[0].uri,
+                  port: "5060")
+              .then((b) => {
+                    pjsip.pjsipCall(
+                        username: dialNumber, ip: serverAddress, port: "5060"),
+                    Navigator.pushNamed(context, "/outgoing",
+                        arguments: dialNumber),
+                  })
+        });
   }
 
   @override

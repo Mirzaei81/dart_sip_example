@@ -5,9 +5,9 @@ class Message {
   final String content;
   final DateTime dateSend;
   final int recvId;
-  final bool read;
   final bool isMine;
-  final bool isPinned;
+  bool read;
+  bool isPinned;
   Map<String, Object?> toMap() {
     return {
       "content": content,

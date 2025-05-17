@@ -21,7 +21,6 @@ import 'package:linphone/src/util/sms.dart';
 import 'package:linphone/src/widgets/Actions.dart';
 import 'package:linphone/src/widgets/alert.dart';
 import 'package:linphone/src/widgets/bottomTabNavigator.dart';
-import 'package:linphone/src/widgets/tabIndicator.dart';
 import 'package:loader_overlay/loader_overlay.dart';
 import 'package:path/path.dart' as pathLib;
 import 'package:path_provider/path_provider.dart';
@@ -102,8 +101,8 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
   }
 
   Future<void> _initDb(SharedPreferencesWithCache p, String address) async {
-    bool fetched = p.getBool("fetched") ?? false;
-    if (!fetched) {
+    int fetched = (await DbService.getPerfrence<int>("fetched")) ?? 0;
+    if (fetched == 0) {
       context.loaderOverlay.show();
       FTPConnect ftpClient =
           FTPConnect(address, user: 'root', pass: 'ys123456', timeout: 10);
@@ -122,7 +121,8 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
             setState(() {
               loading = false;
             });
-            p.setBool("fetched", true);
+
+            await DbService.setPerfrence("fetched", true);
             context.loaderOverlay.hide();
             await ftpClient.disconnect();
           } else {
@@ -151,30 +151,28 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
       Navigator.pushNamed(context, "/register");
       return;
     }
-    var statuses = await [
-      Permission.storage,
-      Permission.notification,
-      Permission.contacts
-    ].request();
 
-    FlutterPjsip instence = FlutterPjsip.instance;
     var p = await _prefs;
-    await instence.pjsipInit(DbService.dbPath);
-    if (statuses.values.contains(PermissionStatus.denied)) {
-      openAppSettings();
-      return;
-    } else if (statuses.values.contains(PermissionStatus.permanentlyDenied)) {
-      openAppSettings();
-      return;
-    } else {
-      await _initDb(p, accounts[0].uri.trim());
-      await _initContacts();
-    }
-    await SmsHandler.connect(context);
     var token = p.getString("token");
     if (token == null) {
       await registerToken(accounts[0].uri.trim(), context, p);
     }
+    const platform = MethodChannel('com.linotik.app/main');
+    try {
+      final result =
+          (await platform.invokeMethod<bool>('request_permissions')) ?? false;
+      if (result) {
+        await _initDb(p, accounts[0].uri.trim());
+        await _initContacts();
+      } else {
+        openAppSettings();
+      }
+    } catch (e) {
+      print(e);
+    }
+    FlutterPjsip instence = FlutterPjsip.instance;
+    await instence.pjsipInit(DbService.dbPath);
+    await SmsHandler.connect(context);
 
     var fetchedContacts = await DbService.listContacts();
     var fetchedTOTcallRecords = await DbService.listRecords();
@@ -392,6 +390,7 @@ Future<void> registerToken(String address, BuildContext context,
     SharedPreferencesWithCache perf) async {
   await Firebase.initializeApp();
   String? token = await FirebaseMessaging.instance.getToken();
+  print(token);
   if (token != null) {
     sendToken(address, token, context, perf);
   }

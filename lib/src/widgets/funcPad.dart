@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
 class funcPad extends StatefulWidget {
@@ -91,7 +92,7 @@ class funcPadWidget extends State<funcPad> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.all(32),
+      margin: EdgeInsets.all(16),
       decoration: BoxDecoration(
           color: Color.fromRGBO(255, 255, 255, 0.5),
           borderRadius: BorderRadius.circular(24)),

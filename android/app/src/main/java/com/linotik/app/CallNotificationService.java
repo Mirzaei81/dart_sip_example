@@ -3,6 +3,8 @@ import java.time.Instant;
 import static android.database.sqlite.SQLiteDatabase.OPEN_READONLY;
 import static android.database.sqlite.SQLiteDatabase.OPEN_READWRITE;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import android.app.NotificationChannel;
@@ -36,6 +38,9 @@ import android.util.Log;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import com.jvtd.flutter_pjsip.PjSipManager;
+import com.jvtd.flutter_pjsip.entity.MyBuddy;
+import com.jvtd.flutter_pjsip.entity.MyCall;
+import com.jvtd.flutter_pjsip.interfaces.MyAppObserver;
 
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -45,8 +50,13 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +77,7 @@ public class CallNotificationService extends FirebaseMessagingService {
     private static final String TABLE_NAME = "person";
     private static final String COLUMN_PHONE_NUMBER = "phone_number";
     private static final String COLUMN_NAME = "name";
+    private PjSipManager instance;
 
     private static final String KEY_TEXT_REPLY = "message";
     private  String host;
@@ -78,7 +89,6 @@ public class CallNotificationService extends FirebaseMessagingService {
         String auth_user ;
         String password ;
         String uri ;
-
         if(cursor.moveToFirst()) {
             auth_user = cursor.getString(cursor.getColumnIndexOrThrow("username"));
             password = cursor.getString(cursor.getColumnIndexOrThrow("password"));
@@ -88,19 +98,48 @@ public class CallNotificationService extends FirebaseMessagingService {
             password = "6016o1";
             uri = "192.168.10.110";
         }
-        new Thread(()->{
-            try {
-                PjSipManager instence = PjSipManager.getInstance();
-                instence.libRegThread(Thread.currentThread().getName());
-                instence.deinit();
-                if(PjSipManager.mEndPoint==null)
-                    instence.init(PjSipManager.observer);
-                instence.login(auth_user,password,uri,"5060");
-                cursor.close();
-            } catch (Exception e) {
-                Log.e(TAG,e.toString());
-            }
-        }).start();
+
+        try {
+            instance = PjSipManager.getInstance();
+            instance.deinit();
+            MyAppObserver tmpObserver = new MyAppObserver() {
+                @Override
+                public void notifyRegState(long code, String reason, long expiration) {
+                    Log.e(TAG,reason+code);
+                }
+
+                @Override
+                public void notifyIncomingCall(MyCall call) {
+
+                }
+
+                @Override
+                public void notifyCallState(MyCall call) {
+
+                }
+
+                @Override
+                public void notifyCallMediaState(MyCall call) {
+
+                }
+
+                @Override
+                public void notifyBuddyState(MyBuddy buddy) {
+
+                }
+
+                @Override
+                public void notifyChangeNetwork() {
+
+                }
+            };
+            instance.init(PjSipManager.observer==null?tmpObserver:PjSipManager.observer);
+            instance.login(auth_user,password,uri,"5060");
+            Log.d(TAG,"login successfully " + PjSipManager.mEndPoint.libGetState());
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG,e.toString());
+        }
         if (!remoteMessage.getData().isEmpty()) {
             handleCallNotification(remoteMessage.getData(),db);
             Log.d(TAG, "Message data payload: " + remoteMessage.getData());
@@ -131,6 +170,7 @@ public class CallNotificationService extends FirebaseMessagingService {
                 ContentValues cv= new ContentValues();
                 cv.put("name",contactNumber);
                 cv.put("img_path",imgPath);
+                cv.put("date",Instant.now().toEpochMilli());
                 cv.put("phone_number",contactNumber);
 
                 personId = db.insert(TABLE_NAME,null,cv);
@@ -262,7 +302,7 @@ public class CallNotificationService extends FirebaseMessagingService {
         Vibrator vibrator = (Vibrator)this.getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
         long[] pattern = {0, 500, 1000};
         VibrationEffect vibrationEffect = VibrationEffect.createWaveform(pattern,1);
-        vibrator.vibrate(vibrationEffect);
+//        vibrator.vibrate(vibrationEffect); TODO
 
         Person.Builder callePerson = new Person.Builder()
                 .setName(callerName.isEmpty()?"test":callerName)
@@ -270,7 +310,7 @@ public class CallNotificationService extends FirebaseMessagingService {
         if(!imgPath.isEmpty()) {
             callePerson.setIcon(IconCompat.createWithContentUri(imgPath));
         }
-
+        instance.deinit();
         SharedPreferences preferences =PreferenceManager.getDefaultSharedPreferences(this);
         SharedPreferences.Editor editor = preferences.edit();
         editor.putString("caller_name",callerName);
@@ -282,11 +322,10 @@ public class CallNotificationService extends FirebaseMessagingService {
         endCallIntent.setAction("ACTION_DECLINE");
         endCallIntent.putExtra("id",personId);
         PendingIntent endCallPendingIntent = PendingIntent.getBroadcast(this, 0, endCallIntent, PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-
-
         Intent answerCallIntent =FlutterActivity.withNewEngine()
-                .initialRoute("/outgoing")
+                .initialRoute(String.format("/outgoing?%s",callerNumber))
                 .build(this);
+        answerCallIntent.putExtra("number",callerNumber);
         PendingIntent answerCallPendingIntent = PendingIntent.getActivity(this, 1, answerCallIntent, PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
 
         Intent incomingCall  = FlutterActivity.withNewEngine()
@@ -299,7 +338,7 @@ public class CallNotificationService extends FirebaseMessagingService {
                         incomingPendingIntent,
                         true
                 )
-                .setAutoCancel(false) // Don't automatically dismiss on tap
+                .setAutoCancel(true) // Don't automatically dismiss on tap
                 .setOngoing(true) // Make it an ongoing notification
                 .setContentTitle("Incoming Call")
                 .setContentText(callerName)
@@ -372,6 +411,7 @@ public class CallNotificationService extends FirebaseMessagingService {
                     }
 
                     // Save token in SharedPreferences
+                    Log.w(TAG,token);
 
                     perf.edit().putString("token", token).apply();
 

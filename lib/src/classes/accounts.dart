@@ -5,14 +5,21 @@ class Accounts {
   final String username;
   final String uri;
   final String password;
+  bool active;
 
   Accounts(
       {required this.id,
       required this.username,
       required this.uri,
+      required this.active,
       required this.password});
   Map<String, Object?> toMap() {
-    return {"username": username, "uri": uri, "password": password};
+    return {
+      "username": username,
+      "uri": uri,
+      "password": password,
+      "active": active ? 1 : 0
+    };
   }
 
   static List<Accounts> fromMaps(List<Map<String, Object?>> accObjects) {
@@ -22,6 +29,7 @@ class Accounts {
           id: acc["id"] as int,
           username: acc["username"] as String,
           password: acc["password"] as String,
+          active: acc["active"] as int == 1,
           uri: acc["uri"] as String));
     }
     return accountsList;

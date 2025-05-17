@@ -1,3 +1,4 @@
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:intl/intl.dart';
@@ -30,9 +31,9 @@ class DbService {
     await _db.close();
   }
 
-  static Future<void> pinMessage(int id) async {
+  static Future<void> pinMessage(int id, bool state) async {
     try {
-      await _db.update("messages", {"isPinned": true},
+      await _db.update("messages", {"isPinned": state},
           where: "id = ?",
           whereArgs: [id],
           conflictAlgorithm: ConflictAlgorithm.replace);
@@ -41,9 +42,9 @@ class DbService {
     }
   }
 
-  static Future<void> pinMessages(int id) async {
+  static Future<void> pinMessages(int id, bool state) async {
     try {
-      await _db.update("messages", {"isPinned": true},
+      await _db.update("messages", {"isPinned": state},
           where: "peerId = ?",
           whereArgs: [id],
           conflictAlgorithm: ConflictAlgorithm.replace);
@@ -108,13 +109,16 @@ class DbService {
     if (map.isEmpty) {
       return null;
     }
-    Contact c = Contact(
-        id: map[0]["id"] ?? 0,
-        name: map[0]["name"] ?? "",
-        date: DateTime.fromMillisecondsSinceEpoch(map[0]["data"]),
-        phoneNumber: map[0]["phone_number"] ?? phone,
-        imgPath: map[0]["img_path"] ?? "");
-    return c;
+    if (map.isNotEmpty) {
+      Contact c = Contact(
+          id: map[0]["id"] ?? 0,
+          name: map[0]["name"] ?? "",
+          date: DateTime.fromMillisecondsSinceEpoch(map[0]["date"]),
+          phoneNumber: map[0]["phone_number"] ?? phone,
+          imgPath: map[0]["img_path"] ?? "");
+      return c;
+    }
+    return null;
   }
 
   static Future<List<CallRecord>> listRecords() async {
@@ -129,7 +133,9 @@ class DbService {
         id: record["id"] as int,
         name: record["name"] as String,
         avatarPath: (record["img_path"] ?? "") as String,
-        date: DateTime.parse(record["date"] as String),
+        date: record["date"] is String
+            ? DateTime.parse(record["date"] as String)
+            : DateTime.fromMillisecondsSinceEpoch(record["date"] as int),
         incoming: record["incoming"] == 1,
         missed: record["missed"] == 1,
         calleNumber: record["phone_number"] as String,
@@ -192,6 +198,7 @@ class DbService {
     return [
       for (var msg in messagesMaps)
         Message(
+          id: (msg["id"] ?? 0) as int,
           recvId: (msg["recvId"] ?? 0) as int,
           content: (msg["content"] ?? '') as String,
           isMine: (msg["isMine"] ?? 0) == 1,
@@ -276,6 +283,28 @@ select
     return row ?? 1;
   }
 
+  static Future<dynamic> getPerfrence<T>(String key) async {
+    var map = (await _db.query("perfrence",
+        columns: ["value"], where: "key = ?", whereArgs: [key]));
+    String value = "";
+    if (map.isNotEmpty) {
+      value = map[0]["value"] as String;
+    }
+    if (T == int) {
+      return int.tryParse(value);
+    } else if (T == bool) {
+      return bool.tryParse(value);
+    }
+    return value;
+  }
+
+  static Future<void> setPerfrence(String key, dynamic value) async {
+    if (value is bool) {
+      value = 1;
+    }
+    await _db.insert("perfrence", {"key": key, "value": value.toString()});
+  }
+
   static Future<void> bulkInsert(String sourceDbPath) async {
     bool exists = await File(sourceDbPath).exists();
     if (exists && _db.isOpen) {
@@ -336,7 +365,8 @@ select
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username VARCHAR(255) NOT NULL,
       uri VARCHAR(255) NOT NULL,
-      password VARCHAR(255) NOT NULL
+      password VARCHAR(255) NOT NULL,
+      active INTEGER NOT NULL DEFAULT 0
   )''');
     await database.execute('''
   CREATE TABLE IF NOT EXISTS person (
@@ -347,6 +377,12 @@ select
     phone_number VARCHAR(20)  NOT NULL UNIQUE
   );
   ''');
+    await database.execute('''
+CREATE TABLE IF NOT EXISTS perfrence( 
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL, 
+      value TEXT)
+      ''');
     return await database.execute('''
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -354,10 +390,14 @@ select
       dateSend DATETIME NOT NULL, 
       isPinned INTEGER Not NULL DEFAULT 0,
       read INTEGER Not NULL DEFAULT 0,
-      peerId int NOT NULL,
-      isMine int Not NULL DEFAULT 0,
+      peerId INTEGER NOT NULL,
+      isMine INTEGER Not NULL DEFAULT 0,
       FOREIGN KEY(peerId) REFERENCES person(id)
     );
   ''');
+  }
+
+  static activeAcc(int id, bool state) async {
+    await _db.update("accounts", {"active": state ? 1 : 0});
   }
 }
