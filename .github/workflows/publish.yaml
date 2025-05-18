@@ -20,7 +20,9 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.30.0' # Use your desired Flutter version
+          flutter-version-file: pubspec.yaml
+          channel: beta
+
 
       - name: Install dependencies
         run: flutter pub get
