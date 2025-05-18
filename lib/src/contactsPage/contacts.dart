@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_contacts/properties/account.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:linphone/src/classes/accounts.dart';
 import 'package:linphone/src/classes/db.dart';
