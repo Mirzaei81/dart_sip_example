@@ -101,7 +101,10 @@ public class CallNotificationService extends FirebaseMessagingService {
 
         try {
             instance = PjSipManager.getInstance();
-            instance.deinit();
+            if(instance.mEndPoint!=null){
+                instance.mEndPoint.libRegisterThread(Thread.currentThread().getName());
+                instance.deinit();
+            }
             MyAppObserver tmpObserver = new MyAppObserver() {
                 @Override
                 public void notifyRegState(long code, String reason, long expiration) {

@@ -1,6 +1,7 @@
 import 'package:linphone/src/callPage/incoming.dart';
 import 'package:linphone/src/callPage/outgoing.dart';
 import 'package:linphone/src/classes/db.dart';
+import 'package:linphone/src/contactsPage/contact_detail.dart';
 import 'package:linphone/src/contactsPage/contacts.dart';
 import 'package:linphone/src/callPage/call_record_page.dart';
 import 'package:linphone/src/messagePage/chat_page.dart';
@@ -42,6 +43,7 @@ class MyApp extends StatelessWidget {
       '/messages': ([Object? arguments]) => MessagePage(),
       '/chat': ([Object? arguments]) => ChatPage(arguments as int),
       '/contacts': ([Object? arguments]) => ContactPage(),
+      '/contact': ([Object? arguments]) => ContactDetailPage(arguments as int),
       '/settings': ([Object? arguments]) => SettingsPage(),
       '/register': ([Object? arguments]) => RegisterWidget(),
       "/outgoing": ([Object? arguments]) => Outgoing(arguments as String),
@@ -57,9 +59,6 @@ class MyApp extends StatelessWidget {
       var kv = name.split("?");
       name = kv[0];
       arguments = kv[1];
-    }
-    if (name == "/outgoing") {
-      print("***OUTGOING CALL INTO ==> $arguments , ${settings.arguments}");
     }
 
     final PageContentBuilder? pageContentBuilder = routes[name!];

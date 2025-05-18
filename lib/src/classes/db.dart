@@ -179,6 +179,10 @@ class DbService {
     return id;
   }
 
+  static Future<void> removeContact(int id) async {
+    await _db.delete('person', where: "id = ?", whereArgs: [id]);
+  }
+
   static Future<void> removeMessage(int id) async {
     await _db.delete('messages', where: "id = ?", whereArgs: [id]);
   }

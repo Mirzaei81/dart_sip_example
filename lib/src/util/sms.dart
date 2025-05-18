@@ -71,7 +71,6 @@ class SmsHandler {
 
   // Methods to be implemented by consumer
   static void send(String data, String dest, int id) async {
-    print("sending a mesage to $dest ");
     print(
         "Action: smscommand\r\ncommand: gsm send sms 2 $dest \"$data\" $id\r\n\r\n");
     _socket!.write(

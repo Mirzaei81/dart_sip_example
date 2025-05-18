@@ -5,14 +5,12 @@ import 'package:linphone/src/widgets/bubble.dart';
 class NavActions extends StatelessWidget {
   const NavActions(
       {super.key,
-      required this.missedCount,
       required TextEditingController searchbarTextConteroller,
       required this.messages,
       required this.onTap})
       : _searchbarTextConteroller = searchbarTextConteroller;
   final PopupMenuItemSelected<String> onTap;
   final List<Map<String, String>> messages;
-  final int missedCount;
   final String bellAsset = "assets/images/Bellsvg.svg";
   final String searchAsset = "assets/images/search.svg";
   final TextEditingController _searchbarTextConteroller;
@@ -27,7 +25,7 @@ class NavActions extends StatelessWidget {
           surfaceTintColor: Colors.white,
           icon: Badge(
             offset: Offset(7, -7),
-            label: Text(missedCount.toString()),
+            label: Text(messages.length.toString()),
             child: SvgPicture.asset(
               bellAsset,
               width: 16,

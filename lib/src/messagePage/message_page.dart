@@ -178,7 +178,6 @@ class _MessageWidget extends State<MessagePage> with TickerProviderStateMixin {
         }),
         actions: [
           NavActions(
-            missedCount: messages.where((m) => !m.read).length,
             searchbarTextConteroller: _searchbarTextConteroller,
             onTap: (result) async => {
               await DbService.seenMessage(int.tryParse(result) ?? 0),

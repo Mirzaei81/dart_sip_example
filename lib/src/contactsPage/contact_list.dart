@@ -138,48 +138,66 @@ class ContactItemState extends State<ContactItemBuilder> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Container(
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        color:
-                                            Color.fromARGB(255, 27, 114, 254)),
-                                    child: SvgPicture.asset(callAsset,
-                                        width: 16,
-                                        height: 16,
-                                        colorFilter: ColorFilter.mode(
-                                            Colors.white, BlendMode.srcIn)),
+                                  GestureDetector(
+                                    onTap: () => Navigator.pushNamed(
+                                        context, "/outgoing",
+                                        arguments: item.phoneNumber),
+                                    child: Container(
+                                      padding: EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          color: Color.fromARGB(
+                                              255, 27, 114, 254)),
+                                      child: SvgPicture.asset(callAsset,
+                                          width: 16,
+                                          height: 16,
+                                          colorFilter: ColorFilter.mode(
+                                              Colors.white, BlendMode.srcIn)),
+                                    ),
                                   ),
                                   SizedBox(
                                     width: 8,
                                   ),
-                                  Container(
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        color:
-                                            Color.fromARGB(255, 27, 114, 254)),
-                                    child: SvgPicture.asset(messageAsset,
-                                        width: 16,
-                                        height: 16,
-                                        colorFilter: ColorFilter.mode(
-                                            Colors.white, BlendMode.srcIn)),
+                                  GestureDetector(
+                                    onTap: () => Navigator.pushNamed(
+                                        context, "/chat",
+                                        arguments: item.id),
+                                    child: Container(
+                                      padding: EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          color: Color.fromARGB(
+                                              255, 27, 114, 254)),
+                                      child: SvgPicture.asset(messageAsset,
+                                          width: 16,
+                                          height: 16,
+                                          colorFilter: ColorFilter.mode(
+                                              Colors.white, BlendMode.srcIn)),
+                                    ),
                                   ),
                                   SizedBox(
                                     width: 8,
                                   ),
-                                  Container(
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        color:
-                                            Color.fromARGB(255, 27, 114, 254)),
-                                    child: SvgPicture.asset(
-                                      infoAsset,
-                                      width: 16,
-                                      height: 16,
-                                      colorFilter: ColorFilter.mode(
-                                          Colors.white, BlendMode.srcIn),
+                                  GestureDetector(
+                                    onTap: () => Navigator.pushNamed(
+                                        context, "/contact",
+                                        arguments: item.id),
+                                    child: Container(
+                                      padding: EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          color: Color.fromARGB(
+                                              255, 27, 114, 254)),
+                                      child: SvgPicture.asset(
+                                        infoAsset,
+                                        width: 16,
+                                        height: 16,
+                                        colorFilter: ColorFilter.mode(
+                                            Colors.white, BlendMode.srcIn),
+                                      ),
                                     ),
                                   ),
                                   SizedBox(

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_contacts/properties/account.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:linphone/src/classes/accounts.dart';
 import 'package:linphone/src/classes/db.dart';
 import 'package:linphone/src/classes/contact.dart';
@@ -10,7 +13,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:linphone/src/widgets/Actions.dart';
 import 'package:linphone/src/widgets/bottomTabNavigator.dart';
+import 'package:vibration/vibration.dart';
 
+typedef OnPickImageCallback = void Function(
+    double? maxWidth, double? maxHeight, int? quality, int? limit);
 bool isCurrentDay(DateTime dateTime) {
   final now = DateTime.now();
   return dateTime.year == now.year &&
@@ -44,6 +50,31 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
 
   late List<Accounts> _accs = List<Accounts>.empty();
   int missedCount = 0;
+
+  List<XFile>? _mediaFileList;
+  final ImagePicker _picker = ImagePicker();
+
+  TextEditingController _accController = TextEditingController();
+
+  TextEditingController _namePreConteroller = TextEditingController();
+  TextEditingController _firstnameConteroller = TextEditingController();
+  TextEditingController _lastnameConteroller = TextEditingController();
+  TextEditingController _nameSuffConteroller = TextEditingController();
+
+  TextEditingController _mobileConteroller = TextEditingController();
+  TextEditingController _telephoneConteroller = TextEditingController();
+  TextEditingController _workConteroller = TextEditingController();
+  TextEditingController _homeConteroller = TextEditingController();
+
+  late String imgSrc = "";
+
+  int _account = 0;
+
+  bool DropDownError = false;
+
+  bool submitGlow = false;
+
+  bool cancelGlow = false;
 
   @override
   void initState() {
@@ -99,6 +130,24 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _onImageButtonPressed(
+    ImageSource source, {
+    required BuildContext context,
+  }) async {
+    if (context.mounted) {
+      try {
+        final XFile? media = await _picker.pickMedia();
+        setState(() {
+          if (media != null) {
+            imgSrc = media.path;
+          }
+        });
+      } catch (e) {
+        print(e);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return fabActive ? newContactPage() : messagesView(_contacts);
@@ -142,7 +191,6 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
         }),
         actions: [
           NavActions(
-            missedCount: missedCount,
             searchbarTextConteroller: _searchbarTextConteroller,
             onTap: (phone) =>
                 Navigator.pushNamed(context, "/outgoing", arguments: phone),
@@ -150,7 +198,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                 .where((c) => isCurrentDay(c.date))
                 .map((c) => {
                       c.phoneNumber:
-                          "${c.name} Has recently been added ti you're contacts"
+                          "${c.name} Has recently been added to you're contacts"
                     })
                 .toList(),
           )
@@ -235,35 +283,371 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
 
   Scaffold newContactPage() {
     const String arrowLeftAsset = "assets/images/arrow_left.svg";
-    const String sentAsset = "assets/images/sent.svg";
     const String userAsset = "assets/images/user_no_outline.svg";
+    const String callAsset = "assets/images/call_outline.svg";
+    const String mailAsset = "assets/images/mail_fill.svg";
+
+    void onClicked() async {
+      if (_account == 0) {
+        setState(() {
+          DropDownError = true;
+        });
+        Vibration.vibrate(duration: 300);
+        return;
+      }
+      int i = await DbService.insertContacts(Contact(
+          name:
+              "${_namePreConteroller.text}${_firstnameConteroller.text} ${_lastnameConteroller.text}${_nameSuffConteroller.text}",
+          phoneNumber: _telephoneConteroller.text,
+          imgPath: imgSrc,
+          date: DateTime.now()));
+      Navigator.pushNamed(context, "/", arguments: i);
+    }
+
+    void OnCancel() {
+      Navigator.pop(context);
+    }
+
     return Scaffold(
         backgroundColor: Colors.white,
         resizeToAvoidBottomInset: true,
-        bottomSheet: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: Colors.white,
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 32,
-                  child: TextField(
-                      cursorHeight: 16,
-                      decoration: InputDecoration(
-                          floatingLabelBehavior: FloatingLabelBehavior.always,
-                          hintStyle: TextStyle(
-                              fontSize: 13,
-                              color: Color.fromRGBO(177, 177, 177, 1)),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(32)),
-                          hintText: 'Enter message',
-                          filled: true,
-                          fillColor: Color.fromRGBO(247, 247, 247, 1))),
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SingleChildScrollView(
+            physics: ScrollPhysics(),
+            child: Column(
+              // mainAxisAlignment: MainAxisAlignment.center,
+              // crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Divider(
+                  height: 10,
+                  thickness: 1,
+                  color: Color.fromRGBO(177, 177, 177, 1),
                 ),
-              ),
-              SvgPicture.asset(sentAsset, width: 20, height: 20),
-            ],
+                GestureDetector(
+                    onTap: () => _onImageButtonPressed(
+                          ImageSource.gallery,
+                          context: context,
+                        ),
+                    child: imgSrc.isEmpty
+                        ? Container(
+                            margin: EdgeInsets.only(top: 12),
+                            alignment: Alignment.center,
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Color.fromRGBO(247, 247, 247, 1),
+                              border: Border.all(
+                                  color: Color.fromRGBO(177, 177, 177, 1)),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.photo_camera,
+                              color: Color.fromRGBO(177, 177, 177, 1),
+                              size: 20,
+                            ),
+                          )
+                        : Container(
+                            width: 64,
+                            height: 64,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(shape: BoxShape.circle),
+                            child: Image.file(
+                              File(imgSrc),
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.fill,
+                            ),
+                          )),
+                Form(
+                  autovalidateMode: AutovalidateMode.onUnfocus,
+                  child: ListView(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    children: [
+                      Container(
+                        margin: EdgeInsets.symmetric(vertical: 12),
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: Color.fromRGBO(247, 247, 247, 1),
+                        ),
+                        child: Theme(
+                          data: ThemeData(
+                              hoverColor: Colors.transparent,
+                              focusColor: Colors.transparent,
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            initiallyExpanded: true,
+                            shape: LinearBorder.none,
+                            tilePadding: EdgeInsets.all(0),
+                            title: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SvgPicture.asset(
+                                  userAsset,
+                                  colorFilter: ColorFilter.mode(
+                                      Color.fromRGBO(96, 96, 96, 1),
+                                      BlendMode.srcIn),
+                                ),
+                                Flexible(
+                                  fit: FlexFit.loose,
+                                  child: TextFormField(
+                                    controller: _namePreConteroller,
+                                    decoration: InputDecoration(
+                                        hintText: "Name Prefix",
+                                        hintStyle: TextStyle(
+                                            color: Color.fromRGBO(
+                                                177, 177, 177, 1))),
+                                  ),
+                                )
+                              ],
+                            ),
+                            children: [
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: TextFormField(
+                                      controller: _firstnameConteroller,
+                                      validator: (v) => (v != null && v.isEmpty)
+                                          ? "FirstName can't be empty"
+                                          : null,
+                                      decoration: InputDecoration(
+                                          hintText: "First Name",
+                                          hintStyle: TextStyle(
+                                              color: Color.fromRGBO(
+                                                  177, 177, 177, 1))),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: TextFormField(
+                                      controller: _lastnameConteroller,
+                                      validator: (v) => (v != null && v.isEmpty)
+                                          ? "LastName can't be empty"
+                                          : null,
+                                      decoration: InputDecoration(
+                                          hintText: "Last Name",
+                                          hintStyle: TextStyle(
+                                              color: Color.fromRGBO(
+                                                  177, 177, 177, 1))),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: TextFormField(
+                                      controller: _nameSuffConteroller,
+                                      decoration: InputDecoration(
+                                          hintText: "Name suffix",
+                                          hintStyle: TextStyle(
+                                              color: Color.fromRGBO(
+                                                  177, 177, 177, 1))),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height: 16,
+                                  )
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: EdgeInsets.symmetric(vertical: 12),
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: Color.fromRGBO(247, 247, 247, 1),
+                        ),
+                        child: Theme(
+                          data: ThemeData(
+                              hoverColor: Colors.transparent,
+                              focusColor: Colors.transparent,
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            initiallyExpanded: true,
+                            shape: LinearBorder.none,
+                            tilePadding: EdgeInsets.all(0),
+                            title: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SvgPicture.asset(
+                                  callAsset,
+                                  colorFilter: ColorFilter.mode(
+                                      Color.fromRGBO(96, 96, 96, 1),
+                                      BlendMode.srcIn),
+                                ),
+                                Flexible(
+                                  fit: FlexFit.loose,
+                                  child: TextFormField(
+                                    controller: _mobileConteroller,
+                                    validator: (v) => (v != null && v.isEmpty)
+                                        ? "Mobile can't be empty"
+                                        : null,
+                                    decoration: InputDecoration(
+                                        hintText: "Mobile",
+                                        isDense: true,
+                                        hintStyle: TextStyle(
+                                            color: Color.fromRGBO(
+                                                177, 177, 177, 1))),
+                                  ),
+                                )
+                              ],
+                            ),
+                            children: [
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: TextFormField(
+                                      controller: _telephoneConteroller,
+                                      validator: (v) => (v != null && v.isEmpty)
+                                          ? "Telephone can't be empty"
+                                          : null,
+                                      decoration: InputDecoration(
+                                          hintText: "Telephone",
+                                          hintStyle: TextStyle(
+                                              color: Color.fromRGBO(
+                                                  177, 177, 177, 1))),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: TextFormField(
+                                      controller: _homeConteroller,
+                                      validator: (v) => (v != null && v.isEmpty)
+                                          ? "Home can't be empty"
+                                          : null,
+                                      decoration: InputDecoration(
+                                          hintText: "Home",
+                                          hintStyle: TextStyle(
+                                              color: Color.fromRGBO(
+                                                  177, 177, 177, 1))),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.loose,
+                                    child: TextFormField(
+                                      controller: _workConteroller,
+                                      validator: (v) => (v != null && v.isEmpty)
+                                          ? "Work can't be empty"
+                                          : null,
+                                      decoration: InputDecoration(
+                                          hintText: "Work",
+                                          hintStyle: TextStyle(
+                                              color: Color.fromRGBO(
+                                                  177, 177, 177, 1))),
+                                    ),
+                                  ),
+                                  Flexible(
+                                      fit: FlexFit.loose,
+                                      child: Text(
+                                        "+ Add Phone Number",
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                            color:
+                                                Color.fromRGBO(27, 115, 254, 1),
+                                            fontSize: 10),
+                                      )),
+                                  SizedBox(
+                                    height: 16,
+                                  )
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                      Column(
+                        children: [
+                          GestureDetector(
+                              onTapDown: (e) => setState(
+                                    () {
+                                      submitGlow = true;
+                                    },
+                                  ),
+                              onTapUp: (e) => {
+                                    onClicked(),
+                                    setState(() {
+                                      submitGlow = false;
+                                    })
+                                  },
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                    vertical: 16, horizontal: 64),
+                                decoration: BoxDecoration(
+                                    color: Color.fromRGBO(27, 115, 254, 1),
+                                    boxShadow: submitGlow
+                                        ? [
+                                            BoxShadow(
+                                              color: const Color(0xFF0000BB)
+                                                  .withAlpha(60),
+                                              blurRadius: 16.0,
+                                              spreadRadius: 3.0,
+                                              offset: const Offset(
+                                                0.0,
+                                                3.0,
+                                              ),
+                                            ),
+                                          ]
+                                        : null,
+                                    borderRadius: BorderRadius.circular(32)),
+                                child: Text(
+                                  "Save",
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 16),
+                                ),
+                              )),
+                          SizedBox(
+                            height: 14,
+                          ),
+                          GestureDetector(
+                              onTapDown: (e) => setState(() {
+                                    cancelGlow = true;
+                                  }),
+                              onTapUp: (e) => {
+                                    OnCancel(),
+                                    setState(
+                                      () {
+                                        cancelGlow = false;
+                                      },
+                                    )
+                                  },
+                              child: Text(
+                                "Cancel",
+                                style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 16,
+                                    shadows: cancelGlow
+                                        ? [
+                                            Shadow(
+                                              color: Colors.redAccent
+                                                  .withAlpha(255),
+                                              blurRadius: 24.0,
+                                              offset: const Offset(
+                                                0.0,
+                                                3.0,
+                                              ),
+                                            )
+                                          ]
+                                        : null),
+                              ))
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
           ),
         ),
         appBar: AppBar(
@@ -308,7 +692,7 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                   ),
                   Expanded(
                     child: DropdownMenu<int>(
-                      // controller: _contactController,
+                      controller: _accController,
                       trailingIcon: Icon(
                         Icons.add,
                         color: Color.fromRGBO(27, 115, 254, 1),
@@ -326,6 +710,10 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                       enableFilter: true,
                       requestFocusOnTap: true,
                       hintText: "Recipient",
+                      onSelected: (item) => setState(() {
+                        DropDownError = false;
+                        _account = item ?? 0;
+                      }),
                       inputDecorationTheme: InputDecorationTheme(
                         hintStyle:
                             TextStyle(color: Color.fromRGBO(177, 177, 177, 1)),
@@ -352,9 +740,6 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                         contentPadding:
                             EdgeInsets.symmetric(vertical: 5.0, horizontal: 9),
                       ),
-                      onSelected: (int? id) {
-                        Navigator.pushNamed(context, "/chat", arguments: id);
-                      },
                       dropdownMenuEntries: _accs.map((Accounts item) {
                         return DropdownMenuEntry<int>(
                             value: item.id ?? 0,
@@ -394,6 +779,13 @@ class _ContactWidget extends State<ContactPage> with TickerProviderStateMixin {
                       }).toList(),
                     ),
                   ),
+                  DropDownError
+                      ? Text(
+                          "Please Select valid Account",
+                          style:
+                              TextStyle(color: Colors.redAccent, fontSize: 12),
+                        )
+                      : SizedBox.shrink(),
                 ],
               )),
         ));

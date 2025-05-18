@@ -159,8 +159,9 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
     }
     const platform = MethodChannel('com.linotik.app/main');
     try {
-      final result =
-          (await platform.invokeMethod<bool>('request_permissions')) ?? false;
+      final result = (await platform.invokeMethod<bool>(
+              'request_permissions', {"database": DbService.dbPath})) ??
+          false;
       if (result) {
         await _initDb(p, accounts[0].uri.trim());
         await _initContacts();
@@ -172,10 +173,16 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
     }
     FlutterPjsip instence = FlutterPjsip.instance;
     await instence.pjsipInit(DbService.dbPath);
+    await instence.pjsipLogin(
+        username: accounts[0].username,
+        password: accounts[0].password,
+        ip: accounts[0].uri,
+        port: "5060");
     await SmsHandler.connect(context);
 
     var fetchedContacts = await DbService.listContacts();
     var fetchedTOTcallRecords = await DbService.listRecords();
+
     setState(() {
       contacts = fetchedContacts;
       TOTcallRecords = fetchedTOTcallRecords;
@@ -263,7 +270,6 @@ class _HistoryWidget extends State<HistoryPage> with TickerProviderStateMixin {
         }),
         actions: [
           NavActions(
-            missedCount: missedCount,
             searchbarTextConteroller: _searchbarTextConteroller,
             onTap: (value) =>
                 Navigator.pushNamed(context, "/outgoing", arguments: value),
@@ -390,6 +396,9 @@ Future<void> registerToken(String address, BuildContext context,
     SharedPreferencesWithCache perf) async {
   await Firebase.initializeApp();
   String? token = await FirebaseMessaging.instance.getToken();
+  FirebaseMessaging.instance.onTokenRefresh.listen(
+    (token) => sendToken(address, token, context, perf),
+  );
   print(token);
   if (token != null) {
     sendToken(address, token, context, perf);

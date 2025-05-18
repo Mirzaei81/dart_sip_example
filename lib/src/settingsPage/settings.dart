@@ -32,13 +32,16 @@ class SettingsWidget extends State<SettingsPage> {
         automaticallyImplyLeading: true,
         toolbarHeight: 69,
         backgroundColor: Color.fromARGB(255, 27, 114, 254),
-        leading: Container(
-          height: 260,
-          width: 260,
-          alignment: Alignment.center, // <---- The magic
-          child: Icon(
-            Icons.arrow_back,
-            color: Colors.white,
+        leading: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            height: 260,
+            width: 260,
+            alignment: Alignment.center, // <---- The magic
+            child: Icon(
+              Icons.arrow_back,
+              color: Colors.white,
+            ),
           ),
         ),
         title: Builder(builder: (context) {

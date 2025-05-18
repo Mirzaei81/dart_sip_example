@@ -55,7 +55,7 @@ public class CallActionReceiver extends BroadcastReceiver {
         notificationManager.cancel(123); // Use the same NOTIFICATION_ID
         PjSipManager instence =  PjSipManager.getInstance();
         try {
-            instence.libRegThread(Thread.currentThread().getName());
+            PjSipManager.mEndPoint.libRegisterThread(Thread.currentThread().getName());
             instence.hangup();
         } catch (Exception e) {
             throw new RuntimeException(e);
